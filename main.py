@@ -40,44 +40,68 @@ def selenium_parser(job_title):
     search_input = browser.find_element(By.ID, 'a11y-search-input')
     search_input.send_keys(job_title)
 
-    # Находим и нажимаем кнопку Submit. Перед [] пишем название тега, внутри - название css-селектора.
-    # search_button = browser.find_element(By.CSS_SELECTOR, 'button[data-qa="search-button"]')
-    # search_button.click()
+    # Submitting search request.
+    search_input.submit()
+
+    current_vacancies_dict = dict()
+
+    while True:
+        vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
+        for vacancy in vacancies:
+            current_vacancies_dict[vacancy.text] = vacancy.get_attribute('href')
+        next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
+        if len(next_page) == 1:
+            next_page = next_page[0].get_attribute('href')
+            browser.get(next_page)
+        else:
+            break
+
+    time.sleep(3)
+    browser.close()
+    return current_vacancies_dict
+
+
+def selenium_parser_advanced(job_title, stop_words_list):
+
+    # Setting browser settings. Making it so that it opens without a window, in the background.
+    browser_options = Options()
+    # browser_options.add_argument('--headless')
+
+    # Creating a browser instance.
+    browser = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=browser_options)
+    browser.maximize_window()
+
+    # Performing a request to the web-site.
+    browser.get('https://spb.hh.ru/search/vacancy/advanced')
+
+    # Finding a search form and passing search request there.
+    search_input = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancysearch__keywords-input"]')
+    search_input.send_keys(job_title)
+
+    # Finding a form for stop words and filling it with them.
+    stop_words_input = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancysearch__keywords-excluded-input"]')
+    stop_words_input.send_keys(', '.join(stop_words_list))
 
     # Submitting search request.
     search_input.submit()
 
-    # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # vacancies_count_object = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancies-search-header"]')
-    # vacancies_count_text = vacancies_count_object.text
-    #
-    # vacancies_count = str()
-    #
-    # for sym in vacancies_count_text:
-    #     if sym != ' ':
-    #         vacancies_count += sym
+    # # Creating the dict like {'vacancy title': 'vacancy URL'} and filling it up.
+    # current_vacancies_dict = dict()
+    # while True:
+    #     vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
+    #     for vacancy in vacancies:
+    #         current_vacancies_dict[vacancy.text] = vacancy.get_attribute('href')
+    #     next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
+    #     if len(next_page) == 1:
+    #         next_page = next_page[0].get_attribute('href')
+    #         browser.get(next_page)
     #     else:
     #         break
-    #
-    # vacancies_count = int(vacancies_count)
-    #
-    # for vacancy in range(vacancies_count):
-    #     current_vacancy_object = browser.find_element(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
-    #     current_vacancy_text = current_vacancy_object.text
-    #     print(vacancy, current_vacancy_text)
-    # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
-    for vacancy in vacancies:
-        print()
-        print(vacancy.text)
-        print(vacancy.get_attribute('href'))
-
-    time.sleep(3)
+    time.sleep(20)
     browser.close()
-    # return vacancies_count_text
 
 
-current_job_title = 'python junior'
-selenium_parser(current_job_title)
-
+job_title = 'python junior'
+stop_words = ['Java', 'JavaScript', 'C++', 'C#', '1С', 'Ruby', 'QA', 'Java Script', 'Unity']
+selenium_parser_advanced(job_title, stop_words)
