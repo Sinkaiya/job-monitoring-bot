@@ -1,37 +1,39 @@
 import time
 import os
+import configparser
+import logging
 
 from webdriver_manager.chrome import ChromeDriverManager
 
 from selenium import webdriver
-# Позволяет конфигурировать браузер, который мы открываем:
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.common.exceptions import NoSuchElementException
 
-from settings import TOKEN
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from aiogram import Bot, Dispatcher, executor, types
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters import Text
+from aiogram.dispatcher.filters.state import State, StatesGroup
+import aiogram.utils.markdown as fmt
+from mysql.connector import connect
 
 
 def selenium_parser(job_title):
 
-    # Задаём свойства браузера.
-    # Делаем так, чтобы браузер открывался без открытия окна, в фоновом режиме.
+    # Setting browser settings. Making it so that it opens without a window, in the background.
     browser_options = Options()
-    # path_to_driver = os.path.abspath(os.path.join('chromedriver'))
     browser_options.add_argument('--headless')
 
-    # Создаём браузер.
-    # browser = webdriver.Chrome(executable_path=path_to_driver, options=browser_options)
+    # Creating a browser instance.
     browser = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=browser_options)
     browser.maximize_window()
 
-    # Делаем запрос к сайту.
+    # Performing a request to the web-site.
     browser.get('https://hh.ru')
 
-    # Ищем форму поиска и передаём туда данные.
+    # Finding a search form and passing search request there.
     search_input = browser.find_element(By.ID, 'a11y-search-input')
     search_input.send_keys(job_title)
 
@@ -39,7 +41,7 @@ def selenium_parser(job_title):
     # search_button = browser.find_element(By.CSS_SELECTOR, 'button[data-qa="search-button"]')
     # search_button.click()
 
-    # Отправляем форму.
+    # Submitting search request.
     search_input.submit()
 
     # Ищем данные с полученной страницы (количество вакансий).
