@@ -85,23 +85,27 @@ def selenium_parser_advanced(job_title, stop_words_list):
     # Submitting search request.
     search_input.submit()
 
-    # # Creating the dict like {'vacancy title': 'vacancy URL'} and filling it up.
-    # current_vacancies_dict = dict()
-    # while True:
-    #     vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
-    #     for vacancy in vacancies:
-    #         current_vacancies_dict[vacancy.text] = vacancy.get_attribute('href')
-    #     next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
-    #     if len(next_page) == 1:
-    #         next_page = next_page[0].get_attribute('href')
-    #         browser.get(next_page)
-    #     else:
-    #         break
+    # Creating the dict like {'vacancy title': 'vacancy URL'} and filling it up.
+    vacancies_dict = dict()
+    while True:
+        vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
+        for vacancy in vacancies:
+            vacancies_dict[vacancy.text] = vacancy.get_attribute('href')
+        next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
+        if len(next_page) == 1:
+            next_page = next_page[0].get_attribute('href')
+            browser.get(next_page)
+        else:
+            break
 
-    time.sleep(20)
+    time.sleep(3)
     browser.close()
+    return vacancies_dict
 
 
-job_title = 'python junior'
-stop_words = ['Java', 'JavaScript', 'C++', 'C#', '1С', 'Ruby', 'QA', 'Java Script', 'Unity']
-selenium_parser_advanced(job_title, stop_words)
+current_job_title = 'python junior'
+current_stop_words = ['Java', 'JavaScript', 'C++', 'C#', '1С', 'Ruby', 'QA', 'Java Script', 'Unity']
+current_jobs_dict = selenium_parser_advanced(current_job_title, current_stop_words)
+print(len(current_jobs_dict))
+for k, v in current_jobs_dict.items():
+    print(k, v)
