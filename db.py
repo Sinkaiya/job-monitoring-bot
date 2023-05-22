@@ -159,4 +159,33 @@ def add_user_if_none(telegram_id, telegram_name):
             return 'db_exists'
 
 
+def add_vacancies(vacancies_dict):
+    connection = connect_to_db(**db_config)
+
+    for vacancy_name, vacancy_url in vacancies_dict.items():
+        # 1. Checking if the vacancy in the db already.
+        search_query = f"SELECT * FROM `vacancies` WHERE `vacancy_url` = '{vacancy_url}';"
+        with connection.cursor() as cursor:
+            try:
+                logging.info(f'Checking if vacancy {vacancy_url} exists...')
+                cursor.execute(search_query)
+            except Exception as e:
+                logging.error(f'An attempt to check if vacancy {vacancy_url} exists failed: {e}', exc_info=True)
+            # If vacancy is not in the DB, we should add it.
+            if cursor.fetchone() is None:
+                insert_query = f"INSERT INTO `vacancies` (`vacancy_url`, `vacancy_name`) VALUES " \
+                               f"('{vacancy_url}', '{vacancy_name}');"
+                try:
+                    logging.info(f'Adding vacancy {vacancy_url} to db...')
+                    cursor.execute(insert_query)
+                    connection.commit()
+                    logging.info(f'Vacancy {vacancy_url} added to db.')
+                except Exception as e:
+                    logging.error(f'An attempt to add vacancy {vacancy_url} to db failed: {e}', exc_info=True)
+            # If vacancy in the db already, we should pass it and move to the next one.
+            else:
+                continue
+
+    connection.close()
+    logging.info(f'Connection to the database closed.')
 
