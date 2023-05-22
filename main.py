@@ -2,18 +2,8 @@ import time
 import os
 import configparser
 import logging
-
-from webdriver_manager.chrome import ChromeDriverManager
-
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.common.exceptions import NoSuchElementException
-
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-
+import aioschedule
+import asyncio
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
@@ -22,90 +12,47 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 import aiogram.utils.markdown as fmt
 from mysql.connector import connect
 
+config = configparser.ConfigParser()
+config.read('config.ini', encoding='utf-8-sig')
+bot_token = config.get('telegram', 'token')
+admin_id = int(config.get('telegram', 'admin_id'))
 
-def selenium_parser(job_title):
+logging.basicConfig(level=logging.INFO,
+                    filename="jobmonitoringbot.log",
+                    filemode="a",
+                    format="%(asctime)s %(levelname)s %(message)s")
 
-    # Setting browser settings. Making it so that it opens without a window, in the background.
-    browser_options = Options()
-    # browser_options.add_argument('--headless')
+bot = Bot(token=bot_token)
+dp = Dispatcher(bot=bot, storage=MemoryStorage())
 
-    # Creating a browser instance.
-    browser = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=browser_options)
-    browser.maximize_window()
 
-    # Performing a request to the web-site.
-    browser.get('https://hh.ru')
+# To keep the bot's states we need to create a class which is inherited from
+# the StatesGroup class. The attributes within this class should be the instances
+# of the State() class.
+class GetUserIdea(StatesGroup):
+    waiting_for_vacancy_name = State()
+    waiting_for_stop_words = State()
 
-    # Finding a search form and passing search request there.
-    search_input = browser.find_element(By.ID, 'a11y-search-input')
-    search_input.send_keys(job_title)
 
-    # Submitting search request.
-    search_input.submit()
+@dp.message_handler(commands='start')
+async def cmd_start(message: types.Message):
+    if message.text.lower() == '/start':
+        greeting = 'Добро пожаловать в бот.\n\n' \
+                   'Greeting text should be here.\n\n' \
+                   'Приятного использования. :3'
+        await message.answer(greeting)
 
-    current_vacancies_dict = dict()
 
+async def scheduler():
+    aioschedule.every().day.at("09:00").do(check_vacancies)
     while True:
-        vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
-        for vacancy in vacancies:
-            current_vacancies_dict[vacancy.text] = vacancy.get_attribute('href')
-        next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
-        if len(next_page) == 1:
-            next_page = next_page[0].get_attribute('href')
-            browser.get(next_page)
-        else:
-            break
-
-    time.sleep(3)
-    browser.close()
-    return current_vacancies_dict
+        await aioschedule.run_pending()
+        await asyncio.sleep(1)
 
 
-def selenium_parser_advanced(job_title, stop_words_list):
-
-    # Setting browser settings. Making it so that it opens without a window, in the background.
-    browser_options = Options()
-    # browser_options.add_argument('--headless')
-
-    # Creating a browser instance.
-    browser = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=browser_options)
-    browser.maximize_window()
-
-    # Performing a request to the web-site.
-    browser.get('https://spb.hh.ru/search/vacancy/advanced')
-
-    # Finding a search form and passing search request there.
-    search_input = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancysearch__keywords-input"]')
-    search_input.send_keys(job_title)
-
-    # Finding a form for stop words and filling it with them.
-    stop_words_input = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancysearch__keywords-excluded-input"]')
-    stop_words_input.send_keys(', '.join(stop_words_list))
-
-    # Submitting search request.
-    search_input.submit()
-
-    # Creating the dict like {'vacancy title': 'vacancy URL'} and filling it up.
-    vacancies_dict = dict()
-    while True:
-        vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
-        for vacancy in vacancies:
-            vacancies_dict[vacancy.text] = vacancy.get_attribute('href')
-        next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
-        if len(next_page) == 1:
-            next_page = next_page[0].get_attribute('href')
-            browser.get(next_page)
-        else:
-            break
-
-    time.sleep(3)
-    browser.close()
-    return vacancies_dict
+async def on_startup(_):
+    asyncio.create_task(scheduler())
 
 
-current_job_title = 'python junior'
-current_stop_words = ['Java', 'JavaScript', 'C++', 'C#', '1С', 'Ruby', 'QA', 'Java Script', 'Unity']
-current_jobs_dict = selenium_parser_advanced(current_job_title, current_stop_words)
-print(len(current_jobs_dict))
-for k, v in current_jobs_dict.items():
-    print(k, v)
+if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
