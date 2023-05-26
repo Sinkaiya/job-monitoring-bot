@@ -1,4 +1,5 @@
 import configparser
+import datetime
 import logging
 from datetime import date
 import time
@@ -140,7 +141,7 @@ def add_user_if_none(telegram_id, telegram_name):
                                               f"`vacancy_url` VARCHAR(256) NOT NULL, " \
                                               f"`vacancy_name` VARCHAR(512) NOT NULL, " \
                                               f"`vacancy_date` DATE NOT NULL, " \
-                                              f"`is_sent_to_user` TINYINT NOT NULL) ENGINE=InnoDB;"
+                                              f"`sent_to_user` TINYINT NOT NULL) ENGINE=InnoDB;"
                 create_table(user_vacancies_create_query, user_vacancies)
                 # 3. Creating a table with user's job names.
                 user_job_names_create_query = f"CREATE TABLE IF NOT EXISTS `{user_job_names}` (" \
@@ -202,7 +203,7 @@ def add_vacancies(user_table_name, vacancies_dict):
             # If vacancy is not in the DB, we should add it.
             if cursor.fetchone() is None:
                 insert_query = f"INSERT INTO `{user_table_name}` (`vacancy_url`, `vacancy_name`, " \
-                               f"`vacancy_date`, `is_sent_to_user`) VALUES " \
+                               f"`vacancy_date`, `sent_to_user`) VALUES " \
                                f"('{vacancy_url}', '{vacancy_name}', '{date.today()}', '0');"
                 try:
                     logging.info(f'Adding vacancy {vacancy_url} to {user_table_name} table...')
@@ -280,12 +281,11 @@ def update_db(table_name, data_field, data, telegram_id=None):
 
 
 def delete_record(table_name, id_column_name, record_id):
-    delete_query = f"DELETE FROM `{table_name}` WHERE `{id_column_name}` = '{record_id}';"
+    logging.info(f'Trying to delete record `{record_id}` from `{table_name}` table...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
-            logging.info(f'Trying to delete record `{record_id}` from `{table_name}` table...')
-            cursor.execute(delete_query)
+            cursor.execute(f"DELETE FROM `{table_name}` WHERE `{id_column_name}` = '{record_id}';")
             connection.commit()
             logging.info(f'Record `{record_id}` deleted from `{table_name}` table.')
         except Exception as e:
@@ -298,8 +298,59 @@ def delete_record(table_name, id_column_name, record_id):
 
 def update_user_vacancies():
     pass
-    # update is_sent_to_user field
+    # update sent_to_user field
     # delete record if vacancy_date > datetime.now + 90 days
+
+
+def delete_old_vacancies():
+    # Getting the list of tables with vacancies.
+    tables_list = []
+    logging.info(f'Getting the list of tables with vacancies...')
+    connection = connect_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(f"SHOW TABLES LIKE 'vacancies%';")
+            result = cursor.fetchall()
+            for elem in result:
+                tables_list.append(elem[0])
+            logging.info(f'A list of tables with vacancies created.')
+        except Exception as e:
+            logging.error(f'An attempt to delete record table '
+                          f'failed: {e}', exc_info=True)
+
+    # Calculating the expiration date.
+    expiration_date = datetime.date.today() - datetime.timedelta(days=90)
+    print(expiration_date)
+
+    # Iterating over all the tables and deleting old vacancies in each one of them.
+    with connection.cursor() as cursor:
+        try:
+            for table in tables_list:
+                logging.info(f'Deleting old vacancies in the {table} table...')
+                cursor.execute(f"DELETE FROM `{table}` WHERE `vacancy_date` < '{expiration_date}';")
+            connection.commit()
+        except Exception as e:
+            logging.error(f'An attempt to delete old vacancies failed: {e}', exc_info=True)
+
+    connection.close()
+
+
+def update_sent_to_user(table_name, vacancy_id, state):
+    logging.info(f'Updating \'sent_to_user\' for {vacancy_id} in {table_name}...')
+    connection = connect_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(f"UPDATE `{table_name}` "
+                           f"SET `sent_to_user` = '{state}' "
+                           f"WHERE `vacancy_id` = '{vacancy_id}';")
+            connection.commit()
+            logging.info(f'\'sent_to_user\' for {vacancy_id} in {table_name} updated.')
+        except Exception as e:
+            logging.error(f'Update of \'sent_to_user\' for {vacancy_id} in {table_name} failed: '
+                          f'{e}', exc_info=True)
+        finally:
+            connection.close()
+            logging.info(f'Connection to the database closed.')
 
 
 def update_user_job_names():
@@ -322,3 +373,6 @@ def delete_user():
     # drop user_job_names
     # drop user_stop_words
     # remove user entry from `users`
+
+
+delete_old_vacancies()
