@@ -135,7 +135,8 @@ def add_user_if_none(telegram_id, telegram_name):
                 logging.info(f'User {telegram_id} ({telegram_name}) added to the DB.')
                 # 2. Creating a table with user's vacancies.
                 user_vacancies_create_query = f"CREATE TABLE IF NOT EXISTS `{user_vacancies}` (" \
-                                              f"`vacancy_id` INT UNSIGNED PRIMARY KEY AUTO_INCREMENT NOT NULL, " \
+                                              f"`vacancy_id` INT UNSIGNED PRIMARY KEY " \
+                                              f"AUTO_INCREMENT NOT NULL, " \
                                               f"`vacancy_url` VARCHAR(256) NOT NULL, " \
                                               f"`vacancy_name` VARCHAR(512) NOT NULL, " \
                                               f"`vacancy_date` DATE NOT NULL, " \
@@ -143,12 +144,14 @@ def add_user_if_none(telegram_id, telegram_name):
                 create_table(user_vacancies_create_query, user_vacancies)
                 # 3. Creating a table with user's job names.
                 user_job_names_create_query = f"CREATE TABLE IF NOT EXISTS `{user_job_names}` (" \
-                                              f"`job_name_id` INT UNSIGNED PRIMARY KEY AUTO_INCREMENT NOT NULL, " \
+                                              f"`job_name_id` INT UNSIGNED PRIMARY KEY " \
+                                              f"AUTO_INCREMENT NOT NULL, " \
                                               f"`job_name` VARCHAR(128) NOT NULL) ENGINE=InnoDB;"
                 create_table(user_job_names_create_query, user_job_names)
                 # 4. Creating a table with user's stop words.
                 user_stop_words_create_query = f"CREATE TABLE IF NOT EXISTS `{user_stop_words}` (" \
-                                               f"`stop_word_id` INT UNSIGNED PRIMARY KEY AUTO_INCREMENT NOT NULL, " \
+                                               f"`stop_word_id` INT UNSIGNED PRIMARY KEY " \
+                                               f"AUTO_INCREMENT NOT NULL, " \
                                                f"`stop_word` VARCHAR(128) NOT NULL) ENGINE=InnoDB;"
                 create_table(user_stop_words_create_query, user_stop_words)
                 connection.close()
@@ -171,9 +174,11 @@ def add_vacancies(user_table_name, vacancies_dict):
     """
     Adds new vacancies into the DB.
 
-    :param user_table_name: a name of the user's table which stores the vacancies found upon user's request
+    :param user_table_name: a name of the user's table which stores the vacancies found
+                            upon user's request
     :type user_table_name: str
-    :param vacancies_dict: a dictionary which contains vacancies: looks like {'vacancy_name': 'vacancy_url'}
+    :param vacancies_dict: a dictionary which contains vacancies: looks like
+                           {'vacancy_name': 'vacancy_url'}
     :type vacancies_dict: dict
 
     :return: True of False, depending on whether everything worked correctly
@@ -187,7 +192,8 @@ def add_vacancies(user_table_name, vacancies_dict):
         search_query = f"SELECT * FROM `{user_table_name}` WHERE `vacancy_url` = '{vacancy_url}';"
         with connection.cursor() as cursor:
             try:
-                logging.info(f'Checking if vacancy {vacancy_url} exists in {user_table_name} table...')
+                logging.info(f'Checking if vacancy {vacancy_url} exists '
+                             f'in {user_table_name} table...')
                 cursor.execute(search_query)
             except Exception as e:
                 logging.error(f'An attempt to check if vacancy {vacancy_url} exists '
@@ -217,7 +223,6 @@ def add_vacancies(user_table_name, vacancies_dict):
         return False
     else:
         return True
-
 
 
 def update_db(table_name, data_field, data, telegram_id=None):
@@ -274,6 +279,23 @@ def update_db(table_name, data_field, data, telegram_id=None):
                 return False
 
 
+def delete_record(table_name, id_column_name, record_id):
+    delete_query = f"DELETE FROM `{table_name}` WHERE `{id_column_name}` = '{record_id}';"
+    connection = connect_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            logging.info(f'Trying to delete record `{record_id}` from `{table_name}` table...')
+            cursor.execute(delete_query)
+            connection.commit()
+            logging.info(f'Record `{record_id}` deleted from `{table_name}` table.')
+        except Exception as e:
+            logging.error(f'An attempt to delete record `{record_id}` from `{table_name}` table '
+                          f'failed: {e}', exc_info=True)
+        finally:
+            connection.close()
+            logging.info(f'Connection to the database closed.')
+
+
 def update_user_vacancies():
     pass
     # update is_sent_to_user field
@@ -300,6 +322,3 @@ def delete_user():
     # drop user_job_names
     # drop user_stop_words
     # remove user entry from `users`
-
-
-
