@@ -173,7 +173,7 @@ def add_user_if_none(telegram_id, telegram_name):
 
 def add_vacancies(user_table_name, vacancies_dict):
     """
-    Adds new vacancies into the DB.
+    Adds new vacancies to the DB.
 
     :param user_table_name: a name of the user's table which stores the vacancies found
                             upon user's request
@@ -214,7 +214,7 @@ def add_vacancies(user_table_name, vacancies_dict):
                     logging.error(f'An attempt to add vacancy {vacancy_url} '
                                   f'to {user_table_name} failed: {e}', exc_info=True)
                     error = True
-            # If vacancy in the db already, we should pass it and move to the next one.
+            # If vacancy is in the db already, we should pass it and move to the next one.
             else:
                 continue
 
@@ -224,60 +224,6 @@ def add_vacancies(user_table_name, vacancies_dict):
         return False
     else:
         return True
-
-
-def update_db(table_name, data_field, data, telegram_id=None):
-    """Updates the data in the DB, depending on the `data_field` parameter.
-
-    :param table_name: name of the DB table we are about to update
-    :type table_name: str
-    :param telegram_id: the id of the user in the DB table
-    :type telegram_id: str or int
-    :param data_field: field of the table that should be updated
-    :type data_field: str
-    :param data: the data that should be written into the specific field of the table
-    :type data: str
-
-    :return: True of False, depending on whether everything worked correctly
-    :rtype: bool
-    """
-    error = False
-    if "'" in str(data):
-        data = data.replace("'", "\\'")
-    if "`" in str(data):
-        data = data.replace("`", "\\`")
-    if table_name == 'users':
-        update_query = f"UPDATE `{table_name}` SET `{data_field}` = '{data}' " \
-                       f"WHERE `telegram_id` = '{telegram_id}'"
-    else:
-        update_query = f"INSERT INTO `{table_name}` (`{data_field}`) VALUES ('{data}');"
-    logging.info(f'Trying to update the `{data_field}` field of `{table_name}` table '
-                 f'with `{data}` value...')
-    connection = connect_to_db(**db_config)
-    with connection.cursor() as cursor:
-        try:
-            double_check_query = f"SELECT * FROM `{table_name}` WHERE `{data_field}` = '{data}';"
-            logging.info(f'Checking if {data} is present in the {table_name} already...')
-            cursor.execute(double_check_query)
-            result = cursor.fetchall()
-            if result:
-                logging.info(f'{data} is present in the {table_name} already.')
-                return 'there_is_double'
-            else:
-                cursor.execute(update_query)
-                connection.commit()
-                logging.info(f'An attempt to update the `{data_field}` field of `{table_name}` '
-                             f'table with `{data}` value has been successful.')
-                return 'idea_saved'
-        except Exception as e:
-            logging.error(f'An attempt to update the `{data_field}` field of `{table_name}` '
-                          f'table with `{data}` value failed: {e}', exc_info=True)
-            error = True
-        finally:
-            connection.close()
-            logging.info(f'Connection to the database closed.')
-            if error:
-                return False
 
 
 def delete_record(table_name, id_column_name, record_id):
@@ -294,12 +240,6 @@ def delete_record(table_name, id_column_name, record_id):
         finally:
             connection.close()
             logging.info(f'Connection to the database closed.')
-
-
-def update_user_vacancies():
-    pass
-    # update sent_to_user field
-    # delete record if vacancy_date > datetime.now + 90 days
 
 
 def delete_old_vacancies():
@@ -320,7 +260,6 @@ def delete_old_vacancies():
 
     # Calculating the expiration date.
     expiration_date = datetime.date.today() - datetime.timedelta(days=90)
-    print(expiration_date)
 
     # Iterating over all the tables and deleting old vacancies in each one of them.
     with connection.cursor() as cursor:
@@ -353,13 +292,50 @@ def update_sent_to_user(table_name, vacancy_id, state):
             logging.info(f'Connection to the database closed.')
 
 
-def update_user_job_names():
-    pass
-    # add new record
+def update_job_names(telegram_id, jobs_list):
+    table_name = 'job_names_' + str(telegram_id)
+    connection = connect_to_db(**db_config)
+    for job_name in jobs_list:
+        # Checking if there is such a job name in the table already.
+        with connection.cursor() as cursor:
+            try:
+                logging.info(f'Checking if {job_name} is in {table_name} already...')
+                cursor.execute(f"SELECT * FROM `{table_name}` WHERE `job_name` = '{job_name}';")
+            except Exception as e:
+                logging.error(f'An attempt to check if {job_name} is in {table_name} '
+                              f'failed: {e}', exc_info=True)
+            # If there is no such a job name in the table, we should add it to db.
+            if cursor.fetchone() is None:
+                try:
+                    logging.info(f'Adding {job_name} to {table_name}...')
+                    cursor.execute(f"INSERT INTO `{table_name}` (`job_name`) "
+                                   f"VALUES ('{job_name}');")
+                    connection.commit()
+                    logging.info(f'A job name {job_name} added to {table_name}.')
+                except Exception as e:
+                    logging.error(f'An attempt to add job name {job_name} to {table_name} '
+                                  f'failed: {e}', exc_info=True)
+                    error = True
+                # If job name is in the db already, we should pass it and move to the next one.
+            else:
+                continue
+
+    connection.close()
+    logging.info(f'Connection to the database closed.')
+    if error:
+        return False
+    else:
+        return True
+
+
+
+
+    # add new record from incoming list
     # remove existing record
     # edit existing record
 
 
+# Similar to 'update_user_job_names'
 def update_user_stop_words():
     # add new stop word
     # remove stop word
@@ -373,6 +349,3 @@ def delete_user():
     # drop user_job_names
     # drop user_stop_words
     # remove user entry from `users`
-
-
-delete_old_vacancies()
