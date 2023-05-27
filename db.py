@@ -226,17 +226,36 @@ def add_vacancies(user_table_name, vacancies_dict):
         return True
 
 
-def delete_record(table_name, id_column_name, record_id):
-    logging.info(f'Trying to delete record `{record_id}` from `{table_name}` table...')
+def delete_record(table_name, column_name, record):
+    logging.info(f'Trying to delete record `{record}` from `{table_name}` table...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
-            cursor.execute(f"DELETE FROM `{table_name}` WHERE `{id_column_name}` = '{record_id}';")
+            cursor.execute(f"DELETE FROM `{table_name}` WHERE `{column_name}` = '{record}';")
             connection.commit()
-            logging.info(f'Record `{record_id}` deleted from `{table_name}` table.')
+            logging.info(f'Record `{record}` deleted from `{table_name}` table.')
         except Exception as e:
-            logging.error(f'An attempt to delete record `{record_id}` from `{table_name}` table '
+            logging.error(f'An attempt to delete record `{record}` from `{table_name}` table '
                           f'failed: {e}', exc_info=True)
+        finally:
+            connection.close()
+            logging.info(f'Connection to the database closed.')
+
+
+def edit_or_delete_record(table_name, column_name, record, operation, old_record=None):
+    if operation == 'edit':
+        query = f"UPDATE `{table_name}` SET `{column_name}` = '{record}' WHERE `{column_name}` = '{old_record}';"
+    else:
+        query = f"DELETE FROM `{table_name}` WHERE `{column_name}` = '{record}';"
+    logging.info(f'Trying to {operation} record {record} in {table_name}...')
+    connection = connect_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(query)
+            connection.commit()
+            logging.info(f'Attempt to {operation} {record} from {table_name} performed successfully.')
+        except Exception as e:
+            logging.error(f'An attempt to {operation} {record} from {table_name} failed: {e}', exc_info=True)
         finally:
             connection.close()
             logging.info(f'Connection to the database closed.')
@@ -350,7 +369,7 @@ def add_job_names_or_stop_words(table_name, data_list):
 
 
 
-    # add new record from incoming list
+
     # remove existing record
     # edit existing record
 
