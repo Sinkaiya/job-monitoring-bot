@@ -226,25 +226,28 @@ def add_vacancies(user_table_name, vacancies_dict):
         return True
 
 
-def delete_record(table_name, column_name, record):
-    logging.info(f'Trying to delete record `{record}` from `{table_name}` table...')
-    connection = connect_to_db(**db_config)
-    with connection.cursor() as cursor:
-        try:
-            cursor.execute(f"DELETE FROM `{table_name}` WHERE `{column_name}` = '{record}';")
-            connection.commit()
-            logging.info(f'Record `{record}` deleted from `{table_name}` table.')
-        except Exception as e:
-            logging.error(f'An attempt to delete record `{record}` from `{table_name}` table '
-                          f'failed: {e}', exc_info=True)
-        finally:
-            connection.close()
-            logging.info(f'Connection to the database closed.')
-
-
 def edit_or_delete_record(table_name, column_name, record, operation, old_record=None):
+    """Edits (replaces with a new one) or deletes records in the DB tables.
+
+    :param table_name: the name of the table which we are performing the operation upon
+    :type table_name: str
+    :param column_name: the name of the column which contains the data we are about to edit/delete
+    :type column_name: str
+    :param record: the record we are about to delete or
+                   a *new* record we are about to replace the old one
+    :type record: str
+    :param operation: the operation we are about to perform: edit or delete
+    :type operation: str
+    :param old_record: the old record we are about to replace with a new one
+    :type old_record: str
+
+    :return: True or False, depending on whether the function has been executed correctly or not
+    :rtype: bool
+    """
     if operation == 'edit':
-        query = f"UPDATE `{table_name}` SET `{column_name}` = '{record}' WHERE `{column_name}` = '{old_record}';"
+        query = f"UPDATE `{table_name}` " \
+                f"SET `{column_name}` = '{record}' " \
+                f"WHERE `{column_name}` = '{old_record}';"
     else:
         query = f"DELETE FROM `{table_name}` WHERE `{column_name}` = '{record}';"
     logging.info(f'Trying to {operation} record {record} in {table_name}...')
@@ -253,9 +256,11 @@ def edit_or_delete_record(table_name, column_name, record, operation, old_record
         try:
             cursor.execute(query)
             connection.commit()
-            logging.info(f'Attempt to {operation} {record} from {table_name} performed successfully.')
+            logging.info(f'Attempt to {operation} {record} from {table_name} '
+                         f'performed successfully.')
         except Exception as e:
-            logging.error(f'An attempt to {operation} {record} from {table_name} failed: {e}', exc_info=True)
+            logging.error(f'An attempt to {operation} {record} from {table_name} failed: {e}',
+                          exc_info=True)
         finally:
             connection.close()
             logging.info(f'Connection to the database closed.')
