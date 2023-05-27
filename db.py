@@ -292,31 +292,51 @@ def update_sent_to_user(table_name, vacancy_id, state):
             logging.info(f'Connection to the database closed.')
 
 
-def update_job_names(telegram_id, jobs_list):
-    table_name = 'job_names_' + str(telegram_id)
+def add_job_names_or_stop_words(table_name, data_list):
+    """Adds new entries to job_names or stop_words tables.
+
+    :param table_name: a name of the table we need to add the data to
+    :type table_name: str
+
+    :param data_list: a list of job names or stop words which should be added to the corresponding table
+    :type data_list: list
+
+    :return: True or False, depending on whether the function has been executed correctly or not
+    :rtype: bool
+    """
+    if table_name.startswith('job_names'):
+        column_name = 'job_name'
+    else:
+        column_name = 'stop_word'
+
+    error = False
     connection = connect_to_db(**db_config)
-    for job_name in jobs_list:
-        # Checking if there is such a job name in the table already.
+
+    for data_element in data_list:
+        # Checking if there is such a data element in the table already.
         with connection.cursor() as cursor:
             try:
-                logging.info(f'Checking if {job_name} is in {table_name} already...')
-                cursor.execute(f"SELECT * FROM `{table_name}` WHERE `job_name` = '{job_name}';")
+                logging.info(f'Checking if {data_element} is in {table_name} already...')
+                cursor.execute(f"SELECT * FROM `{table_name}` WHERE `{column_name}` = '{data_element}';")
             except Exception as e:
-                logging.error(f'An attempt to check if {job_name} is in {table_name} '
+                logging.error(f'An attempt to check if {data_element} is in {table_name} '
                               f'failed: {e}', exc_info=True)
-            # If there is no such a job name in the table, we should add it to db.
+                error = True
+
+            # If there is no such a job name in the table, we should add it.
             if cursor.fetchone() is None:
                 try:
-                    logging.info(f'Adding {job_name} to {table_name}...')
-                    cursor.execute(f"INSERT INTO `{table_name}` (`job_name`) "
-                                   f"VALUES ('{job_name}');")
+                    logging.info(f'Adding {data_element} to {table_name}...')
+                    cursor.execute(f"INSERT INTO `{table_name}` (`{column_name}`) "
+                                   f"VALUES ('{data_element}');")
                     connection.commit()
-                    logging.info(f'A job name {job_name} added to {table_name}.')
+                    logging.info(f'{data_element} added to {table_name}.')
                 except Exception as e:
-                    logging.error(f'An attempt to add job name {job_name} to {table_name} '
+                    logging.error(f'An attempt to add {data_element} to {table_name} '
                                   f'failed: {e}', exc_info=True)
                     error = True
-                # If job name is in the db already, we should pass it and move to the next one.
+
+            # If data element is in the db already, we should pass it and move to the next one.
             else:
                 continue
 
