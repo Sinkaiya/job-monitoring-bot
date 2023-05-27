@@ -4,75 +4,52 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.common.exceptions import NoSuchElementException
-
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 
-def selenium_parser(job_title):
+def selenium_parser(job_titles_list, stop_words_list):
+    """ Opens the advanced search page, fills the search fields in (including stop words),
+    parses the page(s) with results and creates a dictionary like {'vacancy title': 'vacancy URL'}.
 
-    # Setting browser settings. Making it so that it opens without a window, in the background.
-    browser_options = Options()
-    # browser_options.add_argument('--headless')
+    :param job_titles_list: a list with job titles like ['"python junior"', '"python developer"'];
+    it is important to wrap every title in quotes since it is the only way to make the search
+    engine search full phrase instead of any word from it.
+    :type job_titles_list: list
 
-    # Creating a browser instance.
-    browser = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=browser_options)
-    browser.maximize_window()
+    :param stop_words_list: a list with stop words we need to exclude from search like
+    ['Java', 'JavaScript', 'C++']
+    :type stop_words_list: list
 
-    # Performing a request to the web-site.
-    browser.get('https://hh.ru')
-
-    # Finding a search form and passing search request there.
-    search_input = browser.find_element(By.ID, 'a11y-search-input')
-    search_input.send_keys(job_title)
-
-    # Submitting search request.
-    search_input.submit()
-
-    current_vacancies_dict = dict()
-
-    while True:
-        vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
-        for vacancy in vacancies:
-            current_vacancies_dict[vacancy.text] = vacancy.get_attribute('href')
-        next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
-        if len(next_page) == 1:
-            next_page = next_page[0].get_attribute('href')
-            browser.get(next_page)
-        else:
-            break
-
-    time.sleep(3)
-    browser.close()
-    return current_vacancies_dict
-
-
-def selenium_parser_advanced(job_title, stop_words_list):
+    :return: a dictionary with vacancies like {'vacancy title': 'vacancy URL'}
+    :rtype: dict
+    """
 
     # Setting browser settings. Making it so that it opens without a window, in the background.
     browser_options = Options()
     # browser_options.add_argument('--headless')
 
     # Creating a browser instance.
-    browser = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=browser_options)
+    browser = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()),
+                               options=browser_options)
     browser.maximize_window()
 
     # Performing a request to the web-site.
     browser.get('https://spb.hh.ru/search/vacancy/advanced')
 
     # Finding a search form and passing search request there.
-    search_input = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancysearch__keywords-input"]')
-    search_input.send_keys(job_title)
+    search_input = browser.find_element(By.CSS_SELECTOR,
+                                        '[data-qa="vacancysearch__keywords-input"]')
+    search_input.send_keys(' OR '.join(job_titles_list))
 
     # Finding a form for stop words and filling it with them.
-    stop_words_input = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancysearch__keywords-excluded-input"]')
+    stop_words_input = browser.find_element(By.CSS_SELECTOR,
+                                            '[data-qa="vacancysearch__keywords-excluded-input"]')
     stop_words_input.send_keys(', '.join(stop_words_list))
 
     # Submitting search request.
     search_input.submit()
 
-    # Creating the dict like {'vacancy title': 'vacancy URL'} and filling it up.
+    # Creating a dictionary like {'vacancy title': 'vacancy URL'}
+    # and filling it up with search results.
     vacancies_dict = dict()
     while True:
         vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
@@ -81,6 +58,8 @@ def selenium_parser_advanced(job_title, stop_words_list):
             strip_position = vacancy_url.find('?')
             vacancy_url = vacancy_url[:strip_position]
             vacancies_dict[vacancy.text] = vacancy_url
+        # Checking if there is more than 1 page with search results. If there are more pages,
+        # we are setting the next page number and going to the next loop.
         next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
         if len(next_page) == 1:
             next_page = next_page[0].get_attribute('href')
@@ -91,12 +70,3 @@ def selenium_parser_advanced(job_title, stop_words_list):
     time.sleep(3)
     browser.close()
     return vacancies_dict
-
-
-current_job_title = 'python junior'
-current_stop_words = ['Java', 'JavaScript', 'C++', 'C#', '1С', 'Ruby', 'QA', 'Java Script', 'Unity']
-current_jobs_dict = selenium_parser_advanced(current_job_title, current_stop_words)
-print(len(current_jobs_dict))
-# for k, v in current_jobs_dict.items():
-#     print(k, v)
-print(current_jobs_dict)
