@@ -244,6 +244,7 @@ def edit_or_delete_record(table_name, column_name, record, operation, old_record
     :return: True or False, depending on whether the function has been executed correctly or not
     :rtype: bool
     """
+    error = False
     if operation == 'edit':
         query = f"UPDATE `{table_name}` " \
                 f"SET `{column_name}` = '{record}' " \
@@ -261,12 +262,24 @@ def edit_or_delete_record(table_name, column_name, record, operation, old_record
         except Exception as e:
             logging.error(f'An attempt to {operation} {record} from {table_name} failed: {e}',
                           exc_info=True)
-        finally:
-            connection.close()
-            logging.info(f'Connection to the database closed.')
+            error = True
+
+    connection.close()
+    logging.info(f'Connection to the database closed.')
+    if error:
+        return False
+    else:
+        return True
 
 
 def delete_old_vacancies():
+    """
+    Iterates over all the tables which contain vacancies, and deletes the old ones.
+
+    :return: True or False, depending on whether the function has been executed correctly or not
+    :rtype: bool
+    """
+    error = False
     # Getting the list of tables with vacancies.
     tables_list = []
     logging.info(f'Getting the list of tables with vacancies...')
@@ -281,6 +294,7 @@ def delete_old_vacancies():
         except Exception as e:
             logging.error(f'An attempt to delete record table '
                           f'failed: {e}', exc_info=True)
+            error = True
 
     # Calculating the expiration date.
     expiration_date = datetime.date.today() - datetime.timedelta(days=90)
@@ -294,11 +308,30 @@ def delete_old_vacancies():
             connection.commit()
         except Exception as e:
             logging.error(f'An attempt to delete old vacancies failed: {e}', exc_info=True)
+            error = True
 
     connection.close()
+    logging.info(f'Connection to the database closed.')
+    if error:
+        return False
+    else:
+        return True
 
 
 def update_sent_to_user(table_name, vacancy_id, state):
+    """Updates the sent_to_user parameter in the table which contains vacancies
+
+    :param table_name: the name of the table which we are performing the operation upon
+    :type table_name: str
+    :param vacancy_id: the id of the vacancy
+    :type vacancy_id: str or int
+    :param state: the new state for the sent_to_user parameter (0 - false, 1 - true)
+    :type state: int
+
+    :return: True or False, depending on whether the function has been executed correctly or not
+    :rtype: bool
+    """
+    error = False
     logging.info(f'Updating \'sent_to_user\' for {vacancy_id} in {table_name}...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
@@ -311,9 +344,14 @@ def update_sent_to_user(table_name, vacancy_id, state):
         except Exception as e:
             logging.error(f'Update of \'sent_to_user\' for {vacancy_id} in {table_name} failed: '
                           f'{e}', exc_info=True)
-        finally:
-            connection.close()
-            logging.info(f'Connection to the database closed.')
+            error = True
+
+    connection.close()
+    logging.info(f'Connection to the database closed.')
+    if error:
+        return False
+    else:
+        return True
 
 
 def add_job_names_or_stop_words(table_name, data_list):
@@ -370,21 +408,6 @@ def add_job_names_or_stop_words(table_name, data_list):
         return False
     else:
         return True
-
-
-
-
-
-    # remove existing record
-    # edit existing record
-
-
-# Similar to 'update_user_job_names'
-def update_user_stop_words():
-    # add new stop word
-    # remove stop word
-    # edit existing stop word
-    pass
 
 
 def delete_user():
