@@ -410,9 +410,37 @@ def add_job_names_or_stop_words(table_name, data_list):
         return True
 
 
-def delete_user():
-    pass
-    # drop user_vacancies
-    # drop user_job_names
-    # drop user_stop_words
-    # remove user entry from `users`
+def delete_user(telegram_id):
+    """Deletes all user data, including the user's tables and the user's record in the DB.
+
+    :param telegram_id: user's telegram id
+    :type telegram_id: int or str
+
+    :return:True or False, depending on whether the function has been executed correctly or not
+    :rtype: bool
+    """
+    error = False
+    logging.info(f'Deleting all data for the user {telegram_id}...')
+    connection = connect_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            logging.info(f'Getting the tables names for {telegram_id}...')
+            cursor.execute(f"SELECT * FROM `users` WHERE `telegram_id` = {telegram_id};")
+            result = cursor.fetchall()
+            vacancies, job_names, stop_words = result[0][2], result[0][3], result[0][4]
+            logging.info(f'Deleting {telegram_id}\'s tables...')
+            cursor.execute(f"DROP TABLE IF EXISTS `{vacancies}`, `{job_names}`, `{stop_words}`;")
+            logging.info(f'Deleting {telegram_id}\'s record in the DB...')
+            cursor.execute(f"DELETE FROM `users` WHERE `telegram_id` = '{telegram_id}';")
+            connection.commit()
+            logging.info(f'All data for user {telegram_id} deleted.')
+        except Exception as e:
+            logging.error(f'An attempt to {telegram_id}\'s vacancies failed: {e}', exc_info=True)
+            error = True
+
+    connection.close()
+    logging.info(f'Connection to the database closed.')
+    if error:
+        return False
+    else:
+        return True
