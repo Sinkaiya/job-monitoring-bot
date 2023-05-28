@@ -368,6 +368,9 @@ def add_job_names_or_stop_words(table_name, data_list):
     """
     if table_name.startswith('job_names'):
         column_name = 'job_name'
+        for index, job_name in enumerate(data_list):
+            new_job_name = '\"' + job_name + '\"'
+            data_list[index] = new_job_name
     else:
         column_name = 'stop_word'
 
