@@ -460,9 +460,8 @@ def get_job_names_or_stop_words(table_name):
             cursor.execute(f"SELECT * FROM `{table_name}`;")
             logging.info(f'The data from {table_name} acquired')
             result = cursor.fetchall()
-            data_list = []
-            for elem in result:
-                data_list.append(re.sub(r'["\']+', "", elem[1]))
+            data = ', '.join([re.sub(r'["\']+', "", elem[1]) for elem in result])
+            data_list = [re.sub(r'["\']+', "", elem[1]) for elem in result]
         except Exception as e:
             logging.error(f'Getting the data from {table_name} failed: {e}', exc_info=True)
             error = True

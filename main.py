@@ -36,6 +36,7 @@ dp = Dispatcher(bot=bot, storage=MemoryStorage())
 class GetUserData(StatesGroup):
     waiting_for_job_names = State()
     waiting_for_stop_words = State()
+    waiting_for_data_to_edit = State()
 
 
 @dp.message_handler(commands='start')
@@ -111,6 +112,62 @@ async def stop_words_acquired(message: types.Message, state: FSMContext):
     data_acquired = await acquire_data(message, state, table_name)
     if data_acquired:
         await message.answer(texts.stop_words_acquired)
+    else:
+        await message.answer(texts.bot_error_message)
+    await state.finish()
+
+
+@dp.message_handler(commands=['show_job_names', 'show_stop_words'])
+async def show_job_names_or_stop_words(message: types.Message):
+    buttons = [
+        types.InlineKeyboardButton(text="Изменить список", callback_data='edit_dataset'),
+        types.InlineKeyboardButton(text="Удалить список", callback_data='delete_dataset')]
+    table_name = None
+    if message.text == '/show_job_names':
+        table_name = 'job_names_' + str(message.from_user.id)
+        buttons[0]['callback_data'] = 'edit_job_names'
+        buttons[1]['callback_data'] = 'delete_job_names'
+    if message.text == '/show_stop_words':
+        table_name = 'stop_words_' + str(message.from_user.id)
+        buttons[0]['callback_data'] = 'edit_stop_words'
+        buttons[1]['callback_data'] = 'delete_stop_words'
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
+    keyboard.add(*buttons)
+    data = db.get_job_names_or_stop_words(table_name)
+    for elem in data:
+        await message.answer(elem, reply_markup=keyboard)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith('edit_'), state='*')
+async def cmd_edit_or_delete(callback_query: types.CallbackQuery, state: FSMContext):
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id, 'Введите новое:')
+    data = callback_query.message.text  # программист python
+    chat = callback_query.message.chat.id  # 64633225
+    command = callback_query.data  # edit_job_names
+    await state.update_data(data_str_old=data)
+    await state.update_data(data_chat=chat)
+    await state.update_data(data_command=command)
+    await state.set_state(GetUserData.waiting_for_data_to_edit.state)
+
+
+# This function is being called only from the 'waiting_for_data_to_edit' statement.
+@dp.message_handler(state=GetUserData.waiting_for_data_to_edit, content_types='any')
+async def edite_or_delete(message: types.Message, state: FSMContext):
+    if message.content_type != 'text':
+        await message.answer(texts.only_text_warning)
+        return
+    # Saving the job names in the FSM storage via the update_data() method.
+    await state.update_data(data_str=message.text)
+    record = message.text
+    data_details = await state.get_data()  # {'data_str_old': 'программист python', 'data_chat': 64633225, 'data_command': 'edit_job_names'}
+    table_name = ''.join([data_details['data_command'][5:], '_', str(data_details['data_chat'])])
+    column_name = data_details['data_command'][5:-1]
+    print(table_name, column_name, data_details['data_str_old'])
+    # data_acquired = await acquire_data(message, state, table_name)
+    data_changed = db.edit_or_delete_record(table_name, column_name, record, 'edit', data_details['data_str_old'])
+    if data_changed:
+        await message.answer(texts.job_list_acquired)
     else:
         await message.answer(texts.bot_error_message)
     await state.finish()
