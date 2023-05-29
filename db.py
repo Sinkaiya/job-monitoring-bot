@@ -438,7 +438,7 @@ def delete_user(telegram_id):
             connection.commit()
             logging.info(f'All data for user {telegram_id} deleted.')
         except Exception as e:
-            logging.error(f'An attempt to {telegram_id}\'s vacancies failed: {e}', exc_info=True)
+            logging.error(f'An attempt to delete {telegram_id} failed: {e}', exc_info=True)
             error = True
 
     connection.close()

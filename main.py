@@ -13,6 +13,7 @@ import aiogram.utils.markdown as fmt
 from mysql.connector import connect
 import db
 import utils
+import texts
 
 config = configparser.ConfigParser()
 config.read('config.ini', encoding='utf-8-sig')
@@ -39,31 +40,28 @@ class GetUserData(StatesGroup):
 @dp.message_handler(commands='start')
 async def cmd_start(message: types.Message):
     if message.text.lower() == '/start':
-        greeting = 'Добро пожаловать в бот.\n\n' \
-                   'Первым делом нужно указать желаемую вакансию (можно несколько через запятую). ' \
-                   'Стоп-слова используются для уточнения того, что искать не надо. Их тоже можно несколько.' \
-                   '\n\n' \
-                   'Приятного использования. :3'
+        greeting = texts.bot_greeting
         await message.answer(greeting)
 
 
 async def check_if_user_exists(message):
-    """A simple function which checks if we have such user in the DB already, and creating it if none.
+    """A simple function which checks if there is the user's record in the DB already,
+    and creating it if none.
     """
     telegram_id = message.from_user.id
     telegram_name = message.from_user.username
     full_name = message.from_user.full_name
     user_add_result = db.add_user_if_none(telegram_id, telegram_name)
     if user_add_result == 'db_created':
-        await message.answer(f'Приветствуем, {fmt.hbold(full_name)}. Ваша база данных успешно '
-                             f'создана. Приятного использования.', parse_mode=types.ParseMode.HTML)
+        await message.answer(f'Приветствуем, {fmt.hbold(full_name)}', texts.user_entry_created,
+                             parse_mode=types.ParseMode.HTML)
 
 
 @dp.message_handler(commands='add_job_names', state='*')
 async def cmd_add_job_names(message: types.Message, state: FSMContext):
     await check_if_user_exists(message)
     # Putting the bot into the 'waiting_for_job_names' statement:
-    await message.answer('Введите названия желаемых должностей через запятую:')
+    await message.answer(texts.enter_job_names)
     await state.set_state(GetUserData.waiting_for_job_names.state)
 
 
@@ -74,7 +72,7 @@ async def job_names_acquired(message: types.Message, state: FSMContext):
     # to send us text only. The state the bot currently in stays the same,
     # so the bot continues to wait for user's idea.
     if message.content_type != 'text':
-        await message.answer('Бот приемлет только текст. Попробуйте ещё раз.')
+        await message.answer(texts.only_text_warning)
         return
     # Saving the idea in the FSM storage via the update_data() method.
     await state.update_data(user_idea=message.text)
@@ -83,18 +81,18 @@ async def job_names_acquired(message: types.Message, state: FSMContext):
     table_name = 'job_names_' + str(telegram_id)
     db_update_result = db.add_job_names_or_stop_words(table_name, job_names_list)
     if db_update_result:
-        await message.answer('Список должностей успешно сохранён.')
-        await message.answer('Введите стоп-слова - то, что вам не нужно, чтобы было в названиях вакансий:')
+        await message.answer(texts.job_list_acquired)
+        await message.answer(texts.enter_stop_words)
         await state.set_state(GetUserData.waiting_for_stop_words.state)
     else:
-        await message.answer('Что-то пошло не так. Пожалуйста, попробуйте ещё раз.')
+        await message.answer(texts.bot_error_message)
     await state.finish()
 
 
 @dp.message_handler(commands='add_stop_words', state='*')
 async def cmd_add_stop_words(message: types.Message, state: FSMContext):
     await check_if_user_exists(message)
-    await message.answer('Введите стоп-слова - то, что вам не нужно, чтобы было в названиях вакансий:')
+    await message.answer(texts.enter_stop_words)
     await state.set_state(GetUserData.waiting_for_stop_words.state)
 
 
@@ -104,7 +102,7 @@ async def stop_words_acquired(message: types.Message, state: FSMContext):
     # to send us text only. The state the bot currently in stays the same,
     # so the bot continues to wait for user's idea.
     if message.content_type != 'text':
-        await message.answer('Бот приемлет только текст. Попробуйте ещё раз.')
+        await message.answer(texts.only_text_warning)
         return
     # Saving the idea in the FSM storage via the update_data() method.
     await state.update_data(user_idea=message.text)
@@ -113,9 +111,9 @@ async def stop_words_acquired(message: types.Message, state: FSMContext):
     table_name = 'stop_words_' + str(telegram_id)
     db_update_result = db.add_job_names_or_stop_words(table_name, stop_words_list)
     if db_update_result:
-        await message.answer('Список стоп-слов успешно сохранён.')
+        await message.answer(texts.stop_words_acquired)
     else:
-        await message.answer('Что-то пошло не так. Пожалуйста, попробуйте ещё раз.')
+        await message.answer(texts.bot_error_message)
     await state.finish()
 
 
