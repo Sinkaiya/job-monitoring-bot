@@ -463,7 +463,6 @@ def get_job_names_or_stop_words(table_name):
             data_list = []
             for elem in result:
                 data_list.append(re.sub(r'["\']+', "", elem[1]))
-            print(data_list)
         except Exception as e:
             logging.error(f'Getting the data from {table_name} failed: {e}', exc_info=True)
             error = True
@@ -473,4 +472,4 @@ def get_job_names_or_stop_words(table_name):
     if error:
         return False
     else:
-        return True
+        return data_list
