@@ -360,7 +360,7 @@ def add_job_names_or_stop_words(table_name, data_list):
     :param table_name: a name of the table we need to add the data to
     :type table_name: str
 
-    :param data_list: a list of job names or stop words which should be added to the corresponding table
+    :param data_list: a list of job names or stop words which should be added
     :type data_list: list
 
     :return: True or False, depending on whether the function has been executed correctly or not
@@ -382,7 +382,8 @@ def add_job_names_or_stop_words(table_name, data_list):
         with connection.cursor() as cursor:
             try:
                 logging.info(f'Checking if {data_element} is in {table_name} already...')
-                cursor.execute(f"SELECT * FROM `{table_name}` WHERE `{column_name}` = '{data_element}';")
+                cursor.execute(f"SELECT * FROM `{table_name}` "
+                               f"WHERE `{column_name}` = '{data_element}';")
             except Exception as e:
                 logging.error(f'An attempt to check if {data_element} is in {table_name} '
                               f'failed: {e}', exc_info=True)

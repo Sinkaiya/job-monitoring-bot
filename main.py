@@ -14,6 +14,7 @@ from mysql.connector import connect
 import db
 import utils
 import texts
+import re
 
 config = configparser.ConfigParser()
 config.read('config.ini', encoding='utf-8-sig')
@@ -45,16 +46,31 @@ async def cmd_start(message: types.Message):
 
 
 async def check_if_user_exists(message):
-    """A simple function which checks if there is the user's record in the DB already,
-    and creating it if none.
+    """Checks if there is the user's record in the DB already, and creates it if none.
     """
     telegram_id = message.from_user.id
     telegram_name = message.from_user.username
     full_name = message.from_user.full_name
     user_add_result = db.add_user_if_none(telegram_id, telegram_name)
     if user_add_result == 'db_created':
-        await message.answer(f'Приветствуем, {fmt.hbold(full_name)}', texts.user_entry_created,
+        await message.answer(f'Приветствуем, {fmt.hbold(full_name)}, {texts.user_entry_created}',
                              parse_mode=types.ParseMode.HTML)
+
+
+async def acquire_data(message, state, table_name):
+    """Checks if message is text, converts it into a list, and records it into the DB.
+    """
+    # If the user has sent not text but something weird, we are asking
+    # to send us text only. The state the bot currently in stays the same,
+    # so the bot continues to wait for user's idea.
+    if message.content_type != 'text':
+        await message.answer(texts.only_text_warning)
+        return
+    # Saving the job names in the FSM storage via the update_data() method.
+    await state.update_data(data_str=message.text)
+    data_list = re.split(r',\s*', message.text)
+    db_update_result = db.add_job_names_or_stop_words(table_name, data_list)
+    return db_update_result
 
 
 @dp.message_handler(commands='add_job_names', state='*')
@@ -65,52 +81,35 @@ async def cmd_add_job_names(message: types.Message, state: FSMContext):
     await state.set_state(GetUserData.waiting_for_job_names.state)
 
 
-# This function is being called only from the 'waiting_for_vacancy_name' statement.
+# This function is being called only from the 'waiting_for_job_names' statement.
 @dp.message_handler(state=GetUserData.waiting_for_job_names, content_types='any')
 async def job_names_acquired(message: types.Message, state: FSMContext):
-    # If the user has sent not text but something weird, we are asking
-    # to send us text only. The state the bot currently in stays the same,
-    # so the bot continues to wait for user's idea.
-    if message.content_type != 'text':
-        await message.answer(texts.only_text_warning)
-        return
-    # Saving the idea in the FSM storage via the update_data() method.
-    await state.update_data(user_idea=message.text)
-    job_names_list = message.text.split(', ')
-    telegram_id = message.from_user.id
-    table_name = 'job_names_' + str(telegram_id)
-    db_update_result = db.add_job_names_or_stop_words(table_name, job_names_list)
-    if db_update_result:
+    table_name = 'job_names_' + str(message.from_user.id)
+    data_acquired = await acquire_data(message, state, table_name)
+    if data_acquired:
         await message.answer(texts.job_list_acquired)
         await message.answer(texts.enter_stop_words)
+        # Putting the bot into the 'waiting_for_stop_words' statement:
         await state.set_state(GetUserData.waiting_for_stop_words.state)
     else:
         await message.answer(texts.bot_error_message)
-    await state.finish()
+        await state.finish()
 
 
 @dp.message_handler(commands='add_stop_words', state='*')
 async def cmd_add_stop_words(message: types.Message, state: FSMContext):
     await check_if_user_exists(message)
+    # Putting the bot into the 'waiting_for_stop_words' statement:
     await message.answer(texts.enter_stop_words)
     await state.set_state(GetUserData.waiting_for_stop_words.state)
 
 
+# This function is being called only from the 'waiting_for_stop_words' statement.
 @dp.message_handler(state=GetUserData.waiting_for_stop_words, content_types='any')
 async def stop_words_acquired(message: types.Message, state: FSMContext):
-    # If the user has sent not text but something weird, we are asking
-    # to send us text only. The state the bot currently in stays the same,
-    # so the bot continues to wait for user's idea.
-    if message.content_type != 'text':
-        await message.answer(texts.only_text_warning)
-        return
-    # Saving the idea in the FSM storage via the update_data() method.
-    await state.update_data(user_idea=message.text)
-    stop_words_list = message.text.split(', ')
-    telegram_id = message.from_user.id
-    table_name = 'stop_words_' + str(telegram_id)
-    db_update_result = db.add_job_names_or_stop_words(table_name, stop_words_list)
-    if db_update_result:
+    table_name = 'stop_words_' + str(message.from_user.id)
+    data_acquired = await acquire_data(message, state, table_name)
+    if data_acquired:
         await message.answer(texts.stop_words_acquired)
     else:
         await message.answer(texts.bot_error_message)
