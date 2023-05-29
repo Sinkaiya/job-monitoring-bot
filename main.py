@@ -47,8 +47,9 @@ async def cmd_start(message: types.Message):
         await message.answer(greeting)
 
 
-@dp.message_handler(commands='add_job_names', state='*')
-async def cmd_add_job_names(message: types.Message, state: FSMContext):
+async def check_if_user_exists(message):
+    """A simple function which checks if we have such user in the DB already, and creating it if none.
+    """
     telegram_id = message.from_user.id
     telegram_name = message.from_user.username
     full_name = message.from_user.full_name
@@ -56,8 +57,13 @@ async def cmd_add_job_names(message: types.Message, state: FSMContext):
     if user_add_result == 'db_created':
         await message.answer(f'Приветствуем, {fmt.hbold(full_name)}. Ваша база данных успешно '
                              f'создана. Приятного использования.', parse_mode=types.ParseMode.HTML)
-    # Putting the bot into the 'waiting_for_idea' statement:
-    await message.answer('Введите название желаемой вакансии.')
+
+
+@dp.message_handler(commands='add_job_names', state='*')
+async def cmd_add_job_names(message: types.Message, state: FSMContext):
+    await check_if_user_exists(message)
+    # Putting the bot into the 'waiting_for_job_names' statement:
+    await message.answer('Введите названия желаемых должностей через запятую:')
     await state.set_state(GetUserData.waiting_for_job_names.state)
 
 
@@ -73,12 +79,41 @@ async def job_names_acquired(message: types.Message, state: FSMContext):
     # Saving the idea in the FSM storage via the update_data() method.
     await state.update_data(user_idea=message.text)
     job_names_list = message.text.split(', ')
-    print(job_names_list)
     telegram_id = message.from_user.id
     table_name = 'job_names_' + str(telegram_id)
     db_update_result = db.add_job_names_or_stop_words(table_name, job_names_list)
     if db_update_result:
         await message.answer('Список должностей успешно сохранён.')
+        await message.answer('Введите стоп-слова - то, что вам не нужно, чтобы было в названиях вакансий:')
+        await state.set_state(GetUserData.waiting_for_stop_words.state)
+    else:
+        await message.answer('Что-то пошло не так. Пожалуйста, попробуйте ещё раз.')
+    await state.finish()
+
+
+@dp.message_handler(commands='add_stop_words', state='*')
+async def cmd_add_stop_words(message: types.Message, state: FSMContext):
+    await check_if_user_exists(message)
+    await message.answer('Введите стоп-слова - то, что вам не нужно, чтобы было в названиях вакансий:')
+    await state.set_state(GetUserData.waiting_for_stop_words.state)
+
+
+@dp.message_handler(state=GetUserData.waiting_for_stop_words, content_types='any')
+async def stop_words_acquired(message: types.Message, state: FSMContext):
+    # If the user has sent not text but something weird, we are asking
+    # to send us text only. The state the bot currently in stays the same,
+    # so the bot continues to wait for user's idea.
+    if message.content_type != 'text':
+        await message.answer('Бот приемлет только текст. Попробуйте ещё раз.')
+        return
+    # Saving the idea in the FSM storage via the update_data() method.
+    await state.update_data(user_idea=message.text)
+    stop_words_list = message.text.split(', ')
+    telegram_id = message.from_user.id
+    table_name = 'stop_words_' + str(telegram_id)
+    db_update_result = db.add_job_names_or_stop_words(table_name, stop_words_list)
+    if db_update_result:
+        await message.answer('Список стоп-слов успешно сохранён.')
     else:
         await message.answer('Что-то пошло не так. Пожалуйста, попробуйте ещё раз.')
     await state.finish()
