@@ -3,6 +3,7 @@ import datetime
 import logging
 from datetime import date
 import time
+import re
 
 from mysql.connector import connect
 
@@ -440,6 +441,31 @@ def delete_user(telegram_id):
             logging.info(f'All data for user {telegram_id} deleted.')
         except Exception as e:
             logging.error(f'An attempt to delete {telegram_id} failed: {e}', exc_info=True)
+            error = True
+
+    connection.close()
+    logging.info(f'Connection to the database closed.')
+    if error:
+        return False
+    else:
+        return True
+
+
+def get_job_names_or_stop_words(table_name):
+    error = False
+    logging.info(f'Getting the data from {table_name}...')
+    connection = connect_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(f"SELECT * FROM `{table_name}`;")
+            logging.info(f'The data from {table_name} acquired')
+            result = cursor.fetchall()
+            data_list = []
+            for elem in result:
+                data_list.append(re.sub(r'["\']+', "", elem[1]))
+            print(data_list)
+        except Exception as e:
+            logging.error(f'Getting the data from {table_name} failed: {e}', exc_info=True)
             error = True
 
     connection.close()
