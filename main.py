@@ -56,6 +56,7 @@ async def check_if_user_exists(message):
     if user_add_result == 'db_created':
         await message.answer(f'Приветствуем, {fmt.hbold(full_name)}, {texts.user_entry_created}',
                              parse_mode=types.ParseMode.HTML)
+        return True
 
 
 async def acquire_data(message, state, table_name):
@@ -120,18 +121,22 @@ async def stop_words_acquired(message: types.Message, state: FSMContext):
 @dp.message_handler(commands=['show_job_names', 'show_stop_words'])
 async def show_job_names_or_stop_words(message: types.Message):
     buttons = [
-        types.InlineKeyboardButton(text="Изменить список", callback_data='edit_dataset'),
-        types.InlineKeyboardButton(text="Удалить список", callback_data='delete_dataset')]
+        types.InlineKeyboardButton(text="Изменить", callback_data='edit_dataset'),
+        types.InlineKeyboardButton(text="Удалить", callback_data='delete_dataset')]
     table_name = None
+    user_entry_check = await check_if_user_exists(message)
+    if user_entry_check:
+        await message.answer(texts.set_job_names_first)
     if message.text == '/show_job_names':
         table_name = 'job_names_' + str(message.from_user.id)
         buttons[0]['callback_data'] = 'edit_job_names'
         buttons[1]['callback_data'] = 'delete_job_names'
     if message.text == '/show_stop_words':
+        await check_if_user_exists(message)
         table_name = 'stop_words_' + str(message.from_user.id)
         buttons[0]['callback_data'] = 'edit_stop_words'
         buttons[1]['callback_data'] = 'delete_stop_words'
-    keyboard = types.InlineKeyboardMarkup(row_width=2)
+    keyboard = types.InlineKeyboardMarkup()
     keyboard.add(*buttons)
     data = db.get_job_names_or_stop_words(table_name)
     for elem in data:
@@ -163,11 +168,11 @@ async def edite_or_delete(message: types.Message, state: FSMContext):
     data_details = await state.get_data()  # {'data_str_old': 'программист python', 'data_chat': 64633225, 'data_command': 'edit_job_names'}
     table_name = ''.join([data_details['data_command'][5:], '_', str(data_details['data_chat'])])
     column_name = data_details['data_command'][5:-1]
-    print(table_name, column_name, data_details['data_str_old'])
+    print(table_name, column_name, data_details['data_str_old'])  # job_names_64633225 job_name программист python
     # data_acquired = await acquire_data(message, state, table_name)
     data_changed = db.edit_or_delete_record(table_name, column_name, record, 'edit', data_details['data_str_old'])
     if data_changed:
-        await message.answer(texts.job_list_acquired)
+        await message.answer(texts.job_name_changed)
     else:
         await message.answer(texts.bot_error_message)
     await state.finish()

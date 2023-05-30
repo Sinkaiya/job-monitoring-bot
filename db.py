@@ -250,7 +250,7 @@ def edit_or_delete_record(table_name, column_name, record, operation, old_record
         query = f"UPDATE `{table_name}` " \
                 f"SET `{column_name}` = '{record}' " \
                 f"WHERE `{column_name}` = '{old_record}';"
-    else:
+    if operation == 'delete':
         query = f"DELETE FROM `{table_name}` WHERE `{column_name}` = '{record}';"
     logging.info(f'Trying to {operation} record {record} in {table_name}...')
     connection = connect_to_db(**db_config)
@@ -369,10 +369,10 @@ def add_job_names_or_stop_words(table_name, data_list):
     """
     if table_name.startswith('job_names'):
         column_name = 'job_name'
-        for index, job_name in enumerate(data_list):
-            new_job_name = '\"' + job_name + '\"'
-            data_list[index] = new_job_name
-    else:
+        # for index, job_name in enumerate(data_list):
+        #     new_job_name = '\"' + job_name + '\"'
+        #     data_list[index] = new_job_name
+    if table_name.startswith('stop_words'):
         column_name = 'stop_word'
 
     error = False
@@ -460,7 +460,7 @@ def get_job_names_or_stop_words(table_name):
             cursor.execute(f"SELECT * FROM `{table_name}`;")
             logging.info(f'The data from {table_name} acquired')
             result = cursor.fetchall()
-            data = ', '.join([re.sub(r'["\']+', "", elem[1]) for elem in result])
+            # data = ', '.join([re.sub(r'["\']+', "", elem[1]) for elem in result])
             data_list = [re.sub(r'["\']+', "", elem[1]) for elem in result]
         except Exception as e:
             logging.error(f'Getting the data from {table_name} failed: {e}', exc_info=True)
@@ -472,3 +472,59 @@ def get_job_names_or_stop_words(table_name):
         return False
     else:
         return data_list
+
+
+def check_if_user_exists(message):
+    error = False
+    user_exists = None
+    telegram_id = message.from_user.id
+    logging.info(f'Checking if user {telegram_id} exists...')
+    connection = connect_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(f"SELECT * FROM `users` WHERE `telegram_id` = '{telegram_id}';")
+            if cursor.fetchone() is None:
+                logging.info(f'User {telegram_id} does not exist.')
+                user_exists = 'not_exists'
+            else:
+                logging.info(f'User {telegram_id} exists.')
+                user_exists = 'exists'
+        except Exception as e:
+            logging.error(f'Checking if user {telegram_id} has no entries '
+                          f'failed: {e}', exc_info=True)
+            error = True
+
+    connection.close()
+    logging.info(f'Connection to the database closed.')
+    if error:
+        return False
+    else:
+        return user_exists
+
+
+def check_if_user_empty(telegram_id):
+    error = False
+    empty_job_names, empty_stop_words = False, False
+    job_names = '_'.join(['job_names', str(telegram_id)])
+    stop_words = '_'.join(['stop_words', str(telegram_id)])
+    logging.info(f'Checking if user {telegram_id} has no entries...')
+    connection = connect_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(f"SELECT * FROM `{job_names}`;")
+            if cursor.fetchone() is None:
+                empty_job_names = True
+            cursor.execute(f"SELECT * FROM '{stop_words}';")
+            if cursor.fetchone() is None:
+                empty_stop_words = True
+        except Exception as e:
+            logging.error(f'Checking if user {telegram_id} has no entries '
+                          f'failed: {e}', exc_info=True)
+            error = True
+
+    connection.close()
+    logging.info(f'Connection to the database closed.')
+    if error:
+        return False
+    else:
+        return empty_job_names, empty_stop_words
