@@ -512,7 +512,6 @@ def check_if_job_names_empty(message):
 
     connection.close()
     logging.info(texts.connection_closed)
-    print(job_names_table_state)
     if error:
         return False
     else:

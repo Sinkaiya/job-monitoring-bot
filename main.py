@@ -78,7 +78,6 @@ async def job_names_acquired(message: types.Message, state: FSMContext):
     data_acquired = await acquire_data(message, state, table_name)
     if data_acquired:
         await message.answer(texts.job_list_acquired)
-        await message.answer(texts.enter_stop_words)
     else:
         await message.answer(texts.bot_error_message)
     await state.finish()
@@ -130,13 +129,16 @@ async def show_job_names_or_stop_words(message: types.Message):
         await message.answer(elem, reply_markup=keyboard)
 
 
+# Если автозаполнение поля ввода невозможно - как всё-таки лучше реализовать изменение? Поштучно или списком?
+
+
 @dp.callback_query_handler(lambda c: c.data.startswith('edit_'), state='*')
 async def cmd_edit_or_delete(callback_query: types.CallbackQuery, state: FSMContext):
-    await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, 'Введите новое:')
     data = callback_query.message.text  # программист python
     chat = callback_query.message.chat.id  # 64633225
     command = callback_query.data  # edit_job_names
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id, f'Изменяем это:\n\n{data}\n\nВведите новое:')
     await state.update_data(data_str_old=data)
     await state.update_data(data_chat=chat)
     await state.update_data(data_command=command)
