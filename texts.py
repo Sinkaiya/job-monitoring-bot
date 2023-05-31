@@ -25,3 +25,5 @@ set_job_names_first = 'Ваша база данных пока пуста. Дл�
                       'поиска. Для этого нажмите сюда: /add_job_names'
 
 job_name_changed = 'Название должности изменено.'
+
+connection_closed = 'Connection to the database closed.'
