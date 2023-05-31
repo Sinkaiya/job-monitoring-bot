@@ -46,30 +46,18 @@ async def cmd_start(message: types.Message):
         await message.answer(greeting)
 
 
-# async def check_if_user_exists(message):
-#     """Checks if there is the user's record in the DB already, and creates it if none.
-#     """
-#     telegram_id = message.from_user.id
-#     telegram_name = message.from_user.username
-#     full_name = message.from_user.full_name
-#     user_add_result = db.add_user_if_none(telegram_id, telegram_name)
-#     if user_add_result == 'db_created':
-#         await message.answer(f'Приветствуем, {fmt.hbold(full_name)}, {texts.user_entry_created}',
-#                              parse_mode=types.ParseMode.HTML)
-#         return True
-
-
 async def acquire_data(message, state, table_name):
     """Checks if message is text, converts it into a list, and records it into the DB.
     """
     # If the user has sent not text but something weird, we are asking
     # to send us text only. The state the bot currently in stays the same,
-    # so the bot continues to wait for user's idea.
+    # so the bot continues to wait for user's data.
     if message.content_type != 'text':
         await message.answer(texts.only_text_warning)
         return
     # Saving the job names in the FSM storage via the update_data() method.
     await state.update_data(data_str=message.text)
+    # Splitting a string into pieces, using a comma as separator and removing spaces
     data_list = re.split(r',\s*', message.text)
     db_update_result = db.add_job_names_or_stop_words(table_name, data_list)
     return db_update_result
@@ -83,24 +71,10 @@ async def cmd_add_job_names(message: types.Message, state: FSMContext):
     await state.set_state(GetUserData.waiting_for_job_names.state)
 
 
-# # This function is being called only from the 'waiting_for_job_names' statement.
-# @dp.message_handler(state=GetUserData.waiting_for_job_names, content_types='any')
-# async def job_names_acquired(message: types.Message, state: FSMContext):
-#     table_name = 'job_names_' + str(message.from_user.id)
-#     data_acquired = await acquire_data(message, state, table_name)
-#     if data_acquired:
-#         await message.answer(texts.job_list_acquired)
-#         await message.answer(texts.enter_stop_words)
-#         # Putting the bot into the 'waiting_for_stop_words' statement:
-#         await state.set_state(GetUserData.waiting_for_stop_words.state)
-#     else:
-#         await message.answer(texts.bot_error_message)
-#         await state.finish()
-
 # This function is being called only from the 'waiting_for_job_names' statement.
 @dp.message_handler(state=GetUserData.waiting_for_job_names, content_types='any')
 async def job_names_acquired(message: types.Message, state: FSMContext):
-    table_name = 'job_names_' + str(message.from_user.id)
+    table_name = '_'.join(['job_names', str(message.from_user.id)])
     data_acquired = await acquire_data(message, state, table_name)
     if data_acquired:
         await message.answer(texts.job_list_acquired)
@@ -121,7 +95,7 @@ async def cmd_add_stop_words(message: types.Message, state: FSMContext):
 # This function is being called only from the 'waiting_for_stop_words' statement.
 @dp.message_handler(state=GetUserData.waiting_for_stop_words, content_types='any')
 async def stop_words_acquired(message: types.Message, state: FSMContext):
-    table_name = 'stop_words_' + str(message.from_user.id)
+    table_name = '_'.join(['stop_words', str(message.from_user.id)])
     data_acquired = await acquire_data(message, state, table_name)
     if data_acquired:
         await message.answer(texts.stop_words_acquired)
@@ -137,15 +111,16 @@ async def show_job_names_or_stop_words(message: types.Message):
         types.InlineKeyboardButton(text="Удалить", callback_data='delete_dataset')]
     table_name = None
     db.add_user_if_none(message)
-    user_job_names_check = db.check_if_user_empty(message)
+    telegram_id = str(message.from_user.id)
+    user_job_names_check = db.check_if_job_names_empty(message)
     if user_job_names_check == 'empty':
         await message.answer(texts.set_job_names_first)
     if message.text == '/show_job_names':
-        table_name = 'job_names_' + str(message.from_user.id)
+        table_name = '_'.join(['job_names', telegram_id])
         buttons[0]['callback_data'] = 'edit_job_names'
         buttons[1]['callback_data'] = 'delete_job_names'
     if message.text == '/show_stop_words':
-        table_name = 'stop_words_' + str(message.from_user.id)
+        table_name = '_'.join(['stop_words', telegram_id])
         buttons[0]['callback_data'] = 'edit_stop_words'
         buttons[1]['callback_data'] = 'delete_stop_words'
     keyboard = types.InlineKeyboardMarkup()
@@ -180,7 +155,6 @@ async def edite_or_delete(message: types.Message, state: FSMContext):
     data_details = await state.get_data()  # {'data_str_old': 'программист python', 'data_chat': 64633225, 'data_command': 'edit_job_names'}
     table_name = ''.join([data_details['data_command'][5:], '_', str(data_details['data_chat'])])
     column_name = data_details['data_command'][5:-1]
-    print(table_name, column_name, data_details['data_str_old'])  # job_names_64633225 job_name программист python
     # data_acquired = await acquire_data(message, state, table_name)
     data_changed = db.edit_or_delete_record(table_name, column_name, record, 'edit', data_details['data_str_old'])
     if data_changed:

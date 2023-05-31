@@ -103,7 +103,7 @@ def add_user_if_none(message):
     :rtype: bool
     """
     telegram_id = str(message.from_user.id)
-    telegram_name = message.from_user.usernam
+    telegram_name = message.from_user.username
     error = False
 
     # Checking if user is present in the DB already.
