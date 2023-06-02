@@ -117,6 +117,7 @@ def add_user_if_none(message):
     with connection.cursor() as cursor:
         try:
             cursor.execute(search_query)
+            search_result = cursor.fetchone()
         except Exception as e:
             error = True
             logging.error(f'An attempt to check if the user {telegram_id} ({telegram_name}) '
@@ -127,7 +128,7 @@ def add_user_if_none(message):
         #   2. Create a table with user's vacancies.
         #   3. Create a table with user's job names.
         #   4. Create a table with user's stop words.
-        if cursor.fetchone() is None:
+        if search_result is None:
             # 1. Creating the user's entry.
             logging.info(f'User {telegram_id} ({telegram_name}) not found. Adding user...')
             user_vacancies = '_'.join(['vacancies', telegram_id])
@@ -203,12 +204,13 @@ def add_vacancies(user_table_name, vacancies_dict):
                 logging.info(f'Checking if vacancy {vacancy_url} exists '
                              f'in {user_table_name} table...')
                 cursor.execute(search_query)
+                search_result = cursor.fetchone()
             except Exception as e:
                 logging.error(f'An attempt to check if vacancy {vacancy_url} exists '
                               f'in {user_table_name} table failed: {e}', exc_info=True)
                 error = True
             # If vacancy is not in the DB, we should add it.
-            if cursor.fetchone() is None:
+            if search_result is None:
                 insert_query = f"INSERT INTO `{user_table_name}` (`vacancy_url`, `vacancy_name`, " \
                                f"`vacancy_date`, `sent_to_user`) VALUES " \
                                f"('{vacancy_url}', '{vacancy_name}', '{date.today()}', '0');"
@@ -233,7 +235,61 @@ def add_vacancies(user_table_name, vacancies_dict):
         return True
 
 
-def edit_or_delete_record(table_name, column_name, record, operation, old_record=None):
+def edit_record(table_name, column_name, old_record, new_record):
+    """Edits (replaces with a new one) or deletes records in the DB tables.
+
+    :param table_name: the name of the table which we are performing the operation upon
+    :type table_name: str
+    :param column_name: the name of the column which contains the data we are about to edit/delete
+    :type column_name: str
+    :param old_record: the old record we are about to replace with a new one
+    :type old_record: str
+    :param new_record: a new record we are about to replace the old one with
+    :type new_record: str
+
+    :return: True/str or False, depending on whether the function has been executed correctly or not
+    :rtype: bool
+    """
+    error = False
+    function_result = str()
+    logging.info('')
+    logging.info(f'Trying to replace the record \'{old_record}\' '
+                 f'with new record \'{new_record}\' in the {table_name} table...')
+    connection = connect_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            # Checking if there is such a record in the DB already:
+            logging.info(f'Checking if record \'{new_record}\' is present '
+                         f'in the {table_name} table already...')
+            cursor.execute(f"SELECT * FROM `{table_name}` WHERE `{column_name}` = '{new_record}';")
+            search_result = cursor.fetchone()
+            if search_result is None:
+                logging.info(f'The record \'{new_record}\' is not present '
+                         f'in the {table_name} yet. Replacing...')
+                cursor.execute(f"UPDATE `{table_name}` SET `{column_name}` = '{new_record}' "
+                               f"WHERE `{column_name}` = '{old_record}';")
+                connection.commit()
+                function_result = 'changed'
+                logging.info(f'An attempt to replace an old record \'{old_record}\' in {table_name} '
+                             f'with \'{new_record}\' performed successfully.')
+            else:
+                function_result = 'double'
+                logging.info(f'The record \'{new_record}\' is indeed present in the {table_name} '
+                             f'already. Function work result is set to \'{function_result}\'.')
+        except Exception as e:
+            logging.error(f'An attempt to replace an old record \'{old_record}\' in {table_name} '
+                 f'with \'{new_record}\' failed: {e}', exc_info=True)
+            error = True
+
+    connection.close()
+    logging.info(texts.connection_closed)
+    if error:
+        return False
+    else:
+        return function_result
+
+
+def delete_record(table_name, column_name, record):
     """Edits (replaces with a new one) or deletes records in the DB tables.
 
     :param table_name: the name of the table which we are performing the operation upon
@@ -243,32 +299,21 @@ def edit_or_delete_record(table_name, column_name, record, operation, old_record
     :param record: the record we are about to delete or
                    a *new* record we are about to replace the old one
     :type record: str
-    :param operation: the operation we are about to perform: edit or delete
-    :type operation: str
-    :param old_record: the old record we are about to replace with a new one
-    :type old_record: str
 
     :return: True or False, depending on whether the function has been executed correctly or not
     :rtype: bool
     """
     error = False
-    query = None
-    if operation == 'edit':
-        query = f"UPDATE `{table_name}` " \
-                f"SET `{column_name}` = '{record}' " \
-                f"WHERE `{column_name}` = '{old_record}';"
-    if operation == 'delete':
-        query = f"DELETE FROM `{table_name}` WHERE `{column_name}` = '{record}';"
-    logging.info(f'Trying to {operation} record {record} in {table_name}...')
+    logging.info('')
+    logging.info(f'Trying to delete record \'{record}\' from {table_name}...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
-            cursor.execute(query)
+            cursor.execute(f"DELETE FROM `{table_name}` WHERE `{column_name}` = '{record}';")
             connection.commit()
-            logging.info(f'An attempt to {operation} {record} from {table_name} '
-                         f'performed successfully.')
+            logging.info(f'An attempt to delete \'{record}\' from {table_name} performed successfully.')
         except Exception as e:
-            logging.error(f'An attempt to {operation} {record} from {table_name} failed: {e}',
+            logging.error(f'An attempt to delete \'{record}\' from {table_name} failed: {e}',
                           exc_info=True)
             error = True
 
@@ -388,13 +433,14 @@ def add_job_names_or_stop_words(table_name, data_list):
                 logging.info(f'Checking if {data_element} is in {table_name} already...')
                 cursor.execute(f"SELECT * FROM `{table_name}` "
                                f"WHERE `{column_name}` = '{data_element}';")
+                search_result = cursor.fetchone()
             except Exception as e:
                 logging.error(f'An attempt to check if {data_element} is in {table_name} '
                               f'failed: {e}', exc_info=True)
                 error = True
 
             # If there is no such a job name in the table, we should add it.
-            if cursor.fetchone() is None:
+            if search_result is None:
                 try:
                     logging.info(f'Adding {data_element} to {table_name}...')
                     cursor.execute(f"INSERT INTO `{table_name}` (`{column_name}`) "
