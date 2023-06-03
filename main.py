@@ -65,7 +65,7 @@ async def acquire_data(message, state, table_name):
 
 @dp.message_handler(commands='add_job_names', state='*')
 async def cmd_add_job_names(message: types.Message, state: FSMContext):
-    db.add_user_if_none(message)
+    db.add_user_if_none(message)  # checking if user doesn't exist and creating it if it doesn't
     # Putting the bot into the 'waiting_for_job_names' statement:
     await message.answer(texts.enter_job_names)
     await state.set_state(GetUserData.waiting_for_job_names.state)
@@ -85,7 +85,7 @@ async def job_names_acquired(message: types.Message, state: FSMContext):
 
 @dp.message_handler(commands='add_stop_words', state='*')
 async def cmd_add_stop_words(message: types.Message, state: FSMContext):
-    db.add_user_if_none(message)
+    db.add_user_if_none(message)  # checking if user doesn't exist and creating it if it doesn't
     # Putting the bot into the 'waiting_for_stop_words' statement:
     await message.answer(texts.enter_stop_words)
     await state.set_state(GetUserData.waiting_for_stop_words.state)
@@ -105,15 +105,21 @@ async def stop_words_acquired(message: types.Message, state: FSMContext):
 
 @dp.message_handler(commands=['show_job_names', 'show_stop_words'])
 async def show_job_names_or_stop_words(message: types.Message):
+    # Setting default inline buttons which are glued to each separate message
     buttons = [
         types.InlineKeyboardButton(text="Изменить", callback_data='edit_dataset'),
         types.InlineKeyboardButton(text="Удалить", callback_data='delete_dataset')]
-    table_name = None
-    db.add_user_if_none(message)
+    table_name = str()
+    db.add_user_if_none(message)  # checking if user doesn't exist and creating it if it doesn't
     telegram_id = str(message.from_user.id)
+
+    # Checking if user's job names table is empty and warning the user about it if it does:
     user_job_names_check = db.check_if_job_names_empty(message)
     if user_job_names_check == 'empty':
         await message.answer(texts.set_job_names_first)
+
+    # Binding the correct commands to the buttons according to the type of data which is displayed,
+    # and setting a proper table name we are acquiring the data from:
     if message.text == '/show_job_names':
         table_name = '_'.join(['job_names', telegram_id])
         buttons[0]['callback_data'] = 'edit_job_names'
@@ -122,45 +128,78 @@ async def show_job_names_or_stop_words(message: types.Message):
         table_name = '_'.join(['stop_words', telegram_id])
         buttons[0]['callback_data'] = 'edit_stop_words'
         buttons[1]['callback_data'] = 'delete_stop_words'
+
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(*buttons)
-    data = db.get_job_names_or_stop_words(table_name)
+    data = db.get_job_names_or_stop_words(table_name)  # getting the data from the DB as a list
+    # Iterating over that list and displaying each element with its own 'edit' and 'delete' buttons:
     for elem in data:
         await message.answer(elem, reply_markup=keyboard)
 
 
-# Если автозаполнение поля ввода невозможно - как всё-таки лучше реализовать изменение? Поштучно или списком?
-
-
+# A callback handler which catches the commands from the 'edit' buttons.
 @dp.callback_query_handler(lambda c: c.data.startswith('edit_'), state='*')
 async def cmd_edit_or_delete(callback_query: types.CallbackQuery, state: FSMContext):
-    data = callback_query.message.text  # программист python
-    chat = callback_query.message.chat.id  # 64633225
-    command = callback_query.data  # edit_job_names
+
+    # the contents of the message which the button is glued to
+    data_str_old = callback_query.message.text
+    # the user's telegram id
+    telegram_id = str(callback_query.message.chat.id)
+    # the name of the command the button sent, like 'edit_job_names'
+    command = callback_query.data
+
+    # Getting the id of the message we are about to edit:
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, f'Изменяем это:\n\n{data}\n\nВведите новое:')
-    await state.update_data(data_str_old=data)
-    await state.update_data(data_chat=chat)
-    await state.update_data(data_command=command)
+
+    # Telling the user what we are about to edit, and asking to enter the new one:
+    await bot.send_message(callback_query.from_user.id, f'Изменяем '
+                                                        f'это:\n\n{data_str_old}\n\nВведите новое:')
+
+    # Saving the data we are about to edit, the telegram id and the command we received
+    # into the FSM storage via the update_data() method:
+    await state.update_data(data_str_old=data_str_old)
+    await state.update_data(telegram_id=telegram_id)
+    await state.update_data(command=command)
+
+    # Putting the bot into the 'waiting_for_data_to_edit' statement:
     await state.set_state(GetUserData.waiting_for_data_to_edit.state)
 
 
 # This function is being called only from the 'waiting_for_data_to_edit' statement.
 @dp.message_handler(state=GetUserData.waiting_for_data_to_edit, content_types='any')
 async def edite_or_delete(message: types.Message, state: FSMContext):
+
+    # If the user has sent not text but something weird, we are asking
+    # to send us text only. The state the bot currently in stays the same,
+    # so the bot continues to wait for user's data.
     if message.content_type != 'text':
         await message.answer(texts.only_text_warning)
         return
-    # Saving the job names in the FSM storage via the update_data() method.
-    await state.update_data(data_str=message.text)
-    record = message.text
-    data_details = await state.get_data()  # {'data_str_old': 'программист python', 'data_chat': 64633225, 'data_command': 'edit_job_names'}
-    table_name = ''.join([data_details['data_command'][5:], '_', str(data_details['data_chat'])])
-    column_name = data_details['data_command'][5:-1]
-    # data_acquired = await acquire_data(message, state, table_name)
-    data_changed = db.edit_or_delete_record(table_name, column_name, record, 'edit', data_details['data_str_old'])
-    if data_changed:
-        await message.answer(texts.job_name_changed)
+
+    # Getting from the user the new data which should replace the old one
+    # and saving the job names in the FSM storage via the update_data() method.
+    data_str_new = message.text
+    await state.update_data(data_str_new=data_str_new)
+
+    # Restoring the data details from the FSM storage which contains it like this:
+    # {'data_str_old': 'Middle+',
+    #  'telegram_id': 64633225,
+    #  'command': 'edit_stop_words',
+    #  'data_str_new': 'Миддл +'}
+    data_details = await state.get_data()
+    data_str_old = data_details['data_str_old']
+    telegram_id = data_details['telegram_id']
+    command = data_details['command']
+    data_str_new = data_details['data_str_new']
+    table_name = '_'.join([command[5:], telegram_id])
+    column_name = data_details['command'][5:-1]
+    change_data = db.edit_record(table_name, column_name, data_str_old, data_str_new)
+
+    if change_data == 'double':
+        await message.answer('То, что вы пытаетесь сохранить, уже есть в БД. Попробуйте ещё раз.')
+    if change_data == 'changed':
+        # await message.answer(texts.job_name_changed)
+        await message.answer(f'"{data_str_old}" изменено на "{data_str_new}".')
     else:
         await message.answer(texts.bot_error_message)
     await state.finish()
