@@ -4,7 +4,6 @@ import logging
 from datetime import date
 import texts
 import time
-
 from mysql.connector import connect
 
 config = configparser.ConfigParser()
@@ -73,6 +72,7 @@ def create_table(create_query, table):
     :rtype: bool
     """
     error = False
+    logging.info('')
     logging.info(f'Creating table {table}...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
@@ -81,7 +81,7 @@ def create_table(create_query, table):
             connection.commit()
             logging.info(f'Table {table} created.')
         except Exception as e:
-            logging.error(f'Attempt to create table {table} failed: {e}', exc_info=True)
+            logging.error(f'An attempt to create the table {table} failed: {e}', exc_info=True)
             error = True
         finally:
             connection.close()
@@ -96,7 +96,7 @@ def add_user_if_none(message):
     """Checks if a user with such telegram id is present in the DB already,
         and creates a new entry if there is no such user in the DB.
 
-    :param message: an aiogram message object which contains user data
+    :param message: a message object which contains user data
 
     :return: a specific str flag of False, depending on whether everything worked correctly
     :rtype: bool
@@ -153,15 +153,15 @@ def add_user_if_none(message):
                 create_table(user_vacancies_create_query, user_vacancies)
                 # 3. Creating a table with user's job names.
                 user_jobs_create_query = f"CREATE TABLE IF NOT EXISTS `{user_jobs}` (" \
-                                              f"`job_name_id` INT UNSIGNED PRIMARY KEY " \
-                                              f"AUTO_INCREMENT NOT NULL, " \
-                                              f"`job_name` VARCHAR(128) NOT NULL) ENGINE=InnoDB;"
+                                         f"`job_name_id` INT UNSIGNED PRIMARY KEY " \
+                                         f"AUTO_INCREMENT NOT NULL, " \
+                                         f"`job_name` VARCHAR(128) NOT NULL) ENGINE=InnoDB;"
                 create_table(user_jobs_create_query, user_jobs)
                 # 4. Creating a table with user's stop words.
                 user_stops_create_query = f"CREATE TABLE IF NOT EXISTS `{user_stops}` (" \
-                                               f"`stop_word_id` INT UNSIGNED PRIMARY KEY " \
-                                               f"AUTO_INCREMENT NOT NULL, " \
-                                               f"`stop_word` VARCHAR(128) NOT NULL) ENGINE=InnoDB;"
+                                          f"`stop_word_id` INT UNSIGNED PRIMARY KEY " \
+                                          f"AUTO_INCREMENT NOT NULL, " \
+                                          f"`stop_word` VARCHAR(128) NOT NULL) ENGINE=InnoDB;"
                 create_table(user_stops_create_query, user_stops)
                 existence_check_result = 'user_created'
             except Exception as e:
@@ -184,10 +184,9 @@ def add_vacancies(user_table, vacancies_dict):
     Adds new vacancies to the DB.
 
     :param user_table: a name of the user's table which stores the vacancies found
-                            upon user's request
+                       upon the user's request
     :type user_table: str
-    :param vacancies_dict: a dictionary which contains vacancies: looks like
-                           {'vacancy_name': 'vacancy_url'}
+    :param vacancies_dict: a dictionary with vacancies: looks like {'vacancy_name': 'vacancy_url'}
     :type vacancies_dict: dict
 
     :return: True of False, depending on whether everything worked correctly
@@ -202,26 +201,25 @@ def add_vacancies(user_table, vacancies_dict):
         search_query = f"SELECT * FROM `{user_table}` WHERE `vacancy_url` = '{vacancy_url}';"
         with connection.cursor() as cursor:
             try:
-                logging.info(f'Checking if vacancy {vacancy_url} exists '
-                             f'in {user_table} table...')
+                logging.info(f'Checking if {vacancy_url} is present in the {user_table} table...')
                 cursor.execute(search_query)
                 search_result = cursor.fetchone()
             except Exception as e:
                 logging.error(f'An attempt to check if vacancy {vacancy_url} exists '
-                              f'in {user_table} table failed: {e}', exc_info=True)
+                              f'in the {user_table} table failed: {e}', exc_info=True)
                 error = True
-            # If vacancy is not in the DB, we should add it.
+            # If there is no such a vacancy in the DB, we should add it.
             if search_result is None:
                 insert_query = f"INSERT INTO `{user_table}` (`vacancy_url`, `vacancy_name`, " \
                                f"`vacancy_date`, `sent_to_user`) VALUES " \
                                f"('{vacancy_url}', '{vacancy_name}', '{date.today()}', '0');"
                 try:
-                    logging.info(f'Adding vacancy {vacancy_url} to {user_table} table...')
+                    logging.info(f'Adding {vacancy_url} to the {user_table} table...')
                     cursor.execute(insert_query)
                     connection.commit()
-                    logging.info(f'Vacancy {vacancy_url} added to {user_table} table.')
+                    logging.info(f'The vacancy {vacancy_url} added to {user_table} table.')
                 except Exception as e:
-                    logging.error(f'An attempt to add vacancy {vacancy_url} '
+                    logging.error(f'An attempt to add {vacancy_url} '
                                   f'to {user_table} failed: {e}', exc_info=True)
                     error = True
             # If vacancy is in the db already, we pass it and go to the next one.
@@ -263,25 +261,25 @@ def add_jobs_or_stops(table, data_list):
         # Checking if there is such a data element in the table already.
         with connection.cursor() as cursor:
             try:
-                logging.info(f'Checking if {data_element} is in {table} already...')
+                logging.info(f'Checking if \'{data_element}\' is present in {table}...')
                 cursor.execute(f"SELECT * FROM `{table}` "
                                f"WHERE `{column_name}` = '{data_element}';")
                 search_result = cursor.fetchone()
             except Exception as e:
-                logging.error(f'An attempt to check if {data_element} is in {table} '
+                logging.error(f'An attempt to check if \'{data_element}\' is in {table} '
                               f'failed: {e}', exc_info=True)
                 error = True
 
             # If there is no such a job name in the table, we should add it.
             if search_result is None:
                 try:
-                    logging.info(f'Adding {data_element} to {table}...')
+                    logging.info(f'Adding \'{data_element}\' to {table}...')
                     cursor.execute(f"INSERT INTO `{table}` (`{column_name}`) "
                                    f"VALUES ('{data_element}');")
                     connection.commit()
-                    logging.info(f'{data_element} added to {table}.')
+                    logging.info(f'\'{data_element}\' added to {table}.')
                 except Exception as e:
-                    logging.error(f'An attempt to add {data_element} to {table} '
+                    logging.error(f'An attempt to add \'{data_element}\' to {table} '
                                   f'failed: {e}', exc_info=True)
                     error = True
 
@@ -310,12 +308,12 @@ def get_jobs_or_stops(table):
     :rtype: str or bool
     """
     error = False
-    logging.info(f'Getting the data from {table}...')
+    logging.info(f'Getting the data from the \'{table}\' table...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
             cursor.execute(f"SELECT * FROM `{table}`;")
-            logging.info(f'The data from {table} acquired.')
+            logging.info(f'The data from the \'{table}\' table acquired.')
             result = cursor.fetchall()
             data_str = ', '.join([elem[1] for elem in result])
         except Exception as e:
@@ -342,39 +340,40 @@ def get_jobs_or_stops(table):
 #     :param new_record: a new record we are about to replace the old one with
 #     :type new_record: str
 #
-#     :return: True/str or False, depending on whether the function has been executed correctly or not
+#     :return: True/str or False, depending on whether the function
+#              has been executed correctly or not
 #     :rtype: bool
 #     """
 #     error = False
 #     function_result = str()
 #     logging.info('')
 #     logging.info(f'Trying to replace the record \'{old_record}\' '
-#                  f'with new record \'{new_record}\' in the {table} table...')
+#                  f' with new record \'{new_record}\' in the {table} table...')
 #     connection = connect_to_db(**db_config)
 #     with connection.cursor() as cursor:
 #         try:
 #             # Checking if there is such a record in the DB already:
 #             logging.info(f'Checking if record \'{new_record}\' is present '
-#                          f'in the {table} table already...')
+#                          f' in the {table} table already...')
 #             cursor.execute(f"SELECT * FROM `{table}` WHERE `{column_name}` = '{new_record}';")
 #             search_result = cursor.fetchone()
 #             if search_result is None:
 #                 logging.info(f'The record \'{new_record}\' is not present '
-#                              f'in the {table} yet. Replacing...')
+#                              f' in the {table} yet. Replacing...')  # ???????????
 #                 cursor.execute(f"UPDATE `{table}` SET `{column_name}` = '{new_record}' "
 #                                f"WHERE `{column_name}` = '{old_record}';")
 #                 connection.commit()
 #                 function_result = 'changed'
 #                 logging.info(
 #                     f'An attempt to replace an old record \'{old_record}\' in {table} '
-#                     f'with \'{new_record}\' performed successfully.')
+#                     f' with \'{new_record}\' performed successfully.')
 #             else:
 #                 function_result = 'double'
 #                 logging.info(f'The record \'{new_record}\' is indeed present in the {table} '
-#                              f'already. Function work result is set to \'{function_result}\'.')
+#                              f' already. Function work result is set to \'{function_result}\'.')
 #         except Exception as e:
 #             logging.error(f'An attempt to replace an old record \'{old_record}\' in {table} '
-#                           f'with \'{new_record}\' failed: {e}', exc_info=True)
+#                           f' with \'{new_record}\' failed: {e}', exc_info=True)
 #             error = True
 #
 #     connection.close()
@@ -396,16 +395,16 @@ def clean_up_db_table(table):
     """
     error = False
     logging.info('')
-    logging.info(f'Trying to clean up the {table} table...')
+    logging.info(f'Trying to clean up the \'{table}\' table...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
             cursor.execute(f"TRUNCATE TABLE `{table}`;;")
             connection.commit()
             logging.info(
-                f'An attempt to clean up the {table} table performed successfully.')
+                f'The \'{table}\' table cleaned up successfully.')
         except Exception as e:
-            logging.error(f'An attempt to clean up the {table} table failed: {e}',
+            logging.error(f'An attempt to clean up the \'{table}\' table failed: {e}',
                           exc_info=True)
             error = True
 
@@ -418,14 +417,13 @@ def clean_up_db_table(table):
 
 
 def delete_record(table, column_name, record):
-    """Edits (replaces with a new one) or deletes records in the DB tables.
+    """Deletes records in the DB tables.
 
     :param table: the name of the table which we are performing the operation upon
     :type table: str
-    :param column_name: the name of the column which contains the data we are about to edit/delete
+    :param column_name: the name of the column which contains the data we are about to delete
     :type column_name: str
-    :param record: the record we are about to delete or
-                   a *new* record we are about to replace the old one
+    :param record: the record we are about to delete
     :type record: str
 
     :return: True or False, depending on whether the function has been executed correctly or not
@@ -433,17 +431,17 @@ def delete_record(table, column_name, record):
     """
     error = False
     logging.info('')
-    logging.info(f'Trying to delete record \'{record}\' from {table}...')
+    logging.info(f'Trying to delete \'{record}\' in the \'{table}\' table...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
             cursor.execute(f"DELETE FROM `{table}` WHERE `{column_name}` = '{record}';")
             connection.commit()
             logging.info(
-                f'An attempt to delete \'{record}\' from {table} performed successfully.')
+                f'The record \'{record}\' successfully deleted from the \'{table}\' table.')
         except Exception as e:
-            logging.error(f'An attempt to delete \'{record}\' from {table} failed: {e}',
-                          exc_info=True)
+            logging.error(f'An attempt to delete \'{record}\' from the \'{table}\' table '
+                          f'failed: {e}', exc_info=True)
             error = True
 
     connection.close()
@@ -456,7 +454,7 @@ def delete_record(table, column_name, record):
 
 def delete_old_vacancies():
     """
-    Iterates over all the tables which contain vacancies, and deletes the old ones.
+    Iterates over all the tables with vacancies, and deletes the old ones.
 
     :return: True or False, depending on whether the function has been executed correctly or not
     :rtype: bool
@@ -465,8 +463,8 @@ def delete_old_vacancies():
     # Getting the list of tables with vacancies.
     tables_list = []
     logging.info('')
-    logging.info(f'Strating a regular job of deleting old vacancies. '
-                 f'Getting the list of tables with vacancies first...')
+    logging.info(f'Starting a regular job of deleting old vacancies. '
+                 f'Getting the list of tables with vacancies...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
@@ -487,11 +485,12 @@ def delete_old_vacancies():
     with connection.cursor() as cursor:
         try:
             for table in tables_list:
-                logging.info(f'Deleting old vacancies in the {table} table...')
+                logging.info(f'Deleting old vacancies in the \'{table}\' table...')
                 cursor.execute(f"DELETE FROM `{table}` WHERE `vacancy_date` < '{expiration_date}';")
             connection.commit()
         except Exception as e:
-            logging.error(f'An attempt to delete old vacancies failed: {e}', exc_info=True)
+            logging.error(f'An attempt to delete old vacancies in the \'{table}\' table '
+                          f'failed: {e}', exc_info=True)
             error = True
 
     connection.close()
@@ -516,7 +515,8 @@ def update_sent_to_user(table, vacancy_id, state):
     :rtype: bool
     """
     error = False
-    logging.info(f'Updating \'sent_to_user\' field for {vacancy_id} in {table}...')
+    logging.info(f'Updating the \'sent_to_user\' field for {vacancy_id} '
+                 f'in the \'{table}\' table...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
@@ -524,9 +524,9 @@ def update_sent_to_user(table, vacancy_id, state):
                            f"SET `sent_to_user` = '{state}' "
                            f"WHERE `vacancy_id` = '{vacancy_id}';")
             connection.commit()
-            logging.info(f'The \'sent_to_user\' field for {vacancy_id} in {table} updated.')
+            logging.info(f'The \'sent_to_user\' field for {vacancy_id} in the \'{table}\' updated.')
         except Exception as e:
-            logging.error(f'Update of \'sent_to_user\' for {vacancy_id} in {table} failed: '
+            logging.error(f'Update of \'sent_to_user\' for {vacancy_id} in the \'{table}\' failed: '
                           f'{e}', exc_info=True)
             error = True
 
@@ -559,6 +559,7 @@ def delete_user(telegram_id):
             vacancies, jobs, stops = result[0][2], result[0][3], result[0][4]
             logging.info(f'Deleting {telegram_id}\'s tables...')
             cursor.execute(f"DROP TABLE IF EXISTS `{vacancies}`, `{jobs}`, `{stops}`;")
+            logging.info(f'{telegram_id}\'s tables deleted.')
             logging.info(f'Deleting {telegram_id}\'s record in the DB...')
             cursor.execute(f"DELETE FROM `users` WHERE `telegram_id` = '{telegram_id}';")
             connection.commit()
@@ -578,7 +579,7 @@ def delete_user(telegram_id):
 def check_if_jobs_empty(message):
     """Checks if user's table with job names empty.
 
-    :param message: message: an aiogram message object which contains user data
+    :param message: message: a message object which contains user data
 
     :return: a specific str flag of False, depending on whether everything worked correctly
     :rtype: bool
@@ -588,7 +589,8 @@ def check_if_jobs_empty(message):
     telegram_id = str(message.from_user.id)
     jobs_table_state = 'not_empty'
     jobs_table = '_'.join(['jobs', telegram_id])
-    logging.info(f'Checking if user {telegram_id} has no entries in {jobs_table}...')
+    logging.info(f'Checking if the user {telegram_id} has no entries '
+                 f'in the \'{jobs_table}\' table...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
@@ -597,8 +599,8 @@ def check_if_jobs_empty(message):
                 jobs_table_state = 'empty'
         except Exception as e:
             error = True
-            logging.error(f'Check if user {telegram_id} has no entries in {jobs_table} '
-                          f'failed: {e}', exc_info=True)
+            logging.error(f'Check if the user {telegram_id} has no entries in the \'{jobs_table}\' '
+                          f'table failed: {e}', exc_info=True)
 
     connection.close()
     logging.info(texts.connection_closed)

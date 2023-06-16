@@ -11,12 +11,12 @@ def selenium_parser(jobs_list, stops_list):
     parses the page(s) with results and creates a dictionary like {'vacancy title': 'vacancy URL'}.
 
     :param jobs_list: a list with job titles like ['"python junior"', '"python developer"'];
-    it is important to wrap every title in quotes since it is the only way to make the search
-    engine search full phrase instead of any word from it.
+                      it is important to wrap every title in quotes since it is the only way
+                      to make the search engine search full phrase instead of any word from it.
     :type jobs_list: list
 
     :param stops_list: a list with stop words we need to exclude from search like
-    ['Java', 'JavaScript', 'C++']
+                       ['Java', 'JavaScript', 'C++']
     :type stops_list: list
 
     :return: a dictionary with vacancies like {'vacancy title': 'vacancy URL'}
@@ -62,7 +62,7 @@ def selenium_parser(jobs_list, stops_list):
         # Checking if there is more than 1 page with search results. If there are more pages,
         # we are setting the next page number and going to the next loop.
         next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
-        if len(next_page) == 1:
+        if len(next_page) == 1:  # this means there are some more next pages
             next_page = next_page[0].get_attribute('href')
             browser.get(next_page)
         else:
