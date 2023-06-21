@@ -72,7 +72,6 @@ def create_table(create_query, table):
     :rtype: bool
     """
     error = False
-    logging.info('')
     logging.info(f'Creating table {table}...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
@@ -106,7 +105,6 @@ def add_user_if_none(message):
     error = False
 
     # Checking if user is present in the DB already.
-    logging.info('')
     logging.info(f'Checking if user {telegram_id} ({telegram_name}) exists...')
     # This variable takes a 'user_created' or 'user_exists' state depending
     # on the results of the checkup, and is returned if everything goes smoothly
@@ -192,7 +190,6 @@ def add_vacancies(user_table, vacancies_dict):
     :return: True of False, depending on whether everything worked correctly
     :rtype: bool
     """
-    logging.info('')
     logging.info(f'Adding new vacancies to the {user_table} table...')
     connection = connect_to_db(**db_config)
     error = False
@@ -253,7 +250,6 @@ def add_jobs_or_stops(table, data_list):
         column_name = 'stop_word'
 
     error = False
-    logging.info('')
     logging.info(f'Adding new records to the {table} table...')
     connection = connect_to_db(**db_config)
 
@@ -328,62 +324,6 @@ def get_jobs_or_stops(table):
         return data_str
 
 
-# def edit_record(table, column_name, old_record, new_record):
-#     """Edits (replaces with a new one) or deletes records in the DB tables.
-#
-#     :param table: the name of the table which we are performing the operation upon
-#     :type table: str
-#     :param column_name: the name of the column which contains the data we are about to edit/delete
-#     :type column_name: str
-#     :param old_record: the old record we are about to replace with a new one
-#     :type old_record: str
-#     :param new_record: a new record we are about to replace the old one with
-#     :type new_record: str
-#
-#     :return: True/str or False, depending on whether the function
-#              has been executed correctly or not
-#     :rtype: bool
-#     """
-#     error = False
-#     function_result = str()
-#     logging.info('')
-#     logging.info(f'Trying to replace the record \'{old_record}\' '
-#                  f' with new record \'{new_record}\' in the {table} table...')
-#     connection = connect_to_db(**db_config)
-#     with connection.cursor() as cursor:
-#         try:
-#             # Checking if there is such a record in the DB already:
-#             logging.info(f'Checking if record \'{new_record}\' is present '
-#                          f' in the {table} table already...')
-#             cursor.execute(f"SELECT * FROM `{table}` WHERE `{column_name}` = '{new_record}';")
-#             search_result = cursor.fetchone()
-#             if search_result is None:
-#                 logging.info(f'The record \'{new_record}\' is not present '
-#                              f' in the {table} yet. Replacing...')  # ???????????
-#                 cursor.execute(f"UPDATE `{table}` SET `{column_name}` = '{new_record}' "
-#                                f"WHERE `{column_name}` = '{old_record}';")
-#                 connection.commit()
-#                 function_result = 'changed'
-#                 logging.info(
-#                     f'An attempt to replace an old record \'{old_record}\' in {table} '
-#                     f' with \'{new_record}\' performed successfully.')
-#             else:
-#                 function_result = 'double'
-#                 logging.info(f'The record \'{new_record}\' is indeed present in the {table} '
-#                              f' already. Function work result is set to \'{function_result}\'.')
-#         except Exception as e:
-#             logging.error(f'An attempt to replace an old record \'{old_record}\' in {table} '
-#                           f' with \'{new_record}\' failed: {e}', exc_info=True)
-#             error = True
-#
-#     connection.close()
-#     logging.info(texts.connection_closed)
-#     if error:
-#         return False
-#     else:
-#         return function_result
-
-
 def clean_up_db_table(table):
     """Truncates the table.
 
@@ -394,7 +334,6 @@ def clean_up_db_table(table):
     :rtype: bool
     """
     error = False
-    logging.info('')
     logging.info(f'Trying to clean up the \'{table}\' table...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
@@ -430,7 +369,6 @@ def delete_record(table, column_name, record):
     :rtype: bool
     """
     error = False
-    logging.info('')
     logging.info(f'Trying to delete \'{record}\' in the \'{table}\' table...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
@@ -462,7 +400,6 @@ def delete_old_vacancies():
     error = False
     # Getting the list of tables with vacancies.
     tables_list = []
-    logging.info('')
     logging.info(f'Starting a regular job of deleting old vacancies. '
                  f'Getting the list of tables with vacancies...')
     connection = connect_to_db(**db_config)
@@ -548,7 +485,6 @@ def delete_user(telegram_id):
     :rtype: bool
     """
     error = False
-    logging.info('')
     logging.info(f'Deleting all data for the user {telegram_id}...')
     connection = connect_to_db(**db_config)
     with connection.cursor() as cursor:
@@ -584,6 +520,7 @@ def check_if_jobs_empty(message):
     :return: a specific str flag of False, depending on whether everything worked correctly
     :rtype: bool
     """
+    logging.info(f"The 'check_if_jobs_empty' function has been started.")
     error = False
     add_user_if_none(message)  # creating user if it doesn't exist
     telegram_id = str(message.from_user.id)
@@ -608,3 +545,48 @@ def check_if_jobs_empty(message):
         return False
     else:
         return jobs_table_state
+
+
+def get_users():
+    logging.info("The 'get_users' function has been started.")
+    error = False
+    logging.info("Collecting telegram ids of the users.")
+    telegram_ids = []
+    connection = connect_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute("SELECT `telegram_id` FROM `users`;")
+            result = cursor.fetchall()
+            telegram_ids = [str(elem[0]) for elem in result]
+        except Exception as e:
+            error = True
+            logging.error(f"Collecting the users' telegram ids table failed: {e}", exc_info=True)
+    connection.close()
+    logging.info(texts.connection_closed)
+    if error:
+        return False
+    else:
+        return telegram_ids
+
+
+def get_vacancies(table):
+    logging.info("The 'get_vacancies' function has been started.")
+    error = False
+    logging.info(f"Collecting vacancies with negative 'sent_to_user' flag from the {table} table.")
+    connection = connect_to_db(**db_config)
+    vacancies_dict = dict()
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(f"SELECT * FROM `{table}` WHERE 'sent_to_user' = 0;")
+            result = cursor.fetchall()
+            for elem in result:
+                vacancies_dict[elem[2]] = elem[1]
+        except Exception as e:
+            error = True
+            logging.error(f"Collecting the users' telegram ids table failed: {e}", exc_info=True)
+    connection.close()
+    logging.info(texts.connection_closed)
+    if error:
+        return False
+    else:
+        return vacancies_dict

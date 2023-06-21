@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service as ChromeService
 
 
-def selenium_parser(jobs_list, stops_list):
+def hh_parser(jobs_list, stops_list):
     """ Opens the advanced search page, fills the search fields in (including stop words),
     parses the page(s) with results and creates a dictionary like {'vacancy title': 'vacancy URL'}.
 
@@ -35,6 +35,11 @@ def selenium_parser(jobs_list, stops_list):
 
     # Performing a request to the web-site.
     browser.get('https://spb.hh.ru/search/vacancy/advanced')
+
+    # Wrapping every job name in quotes because HH's search engine demands it.
+    for index, job_name in enumerate(jobs_list):
+        new_job_name = '\"' + job_name + '\"'
+        jobs_list[index] = new_job_name
 
     # Finding a search form and passing search request there.
     search_input = browser.find_element(By.CSS_SELECTOR,

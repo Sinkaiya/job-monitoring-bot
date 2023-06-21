@@ -225,6 +225,41 @@ async def edit_or_delete_jobs_or_stops(message: types.Message, state: FSMContext
     await state.finish()
 
 
+async def check_new_vacancies():
+    # 1. We should do that for each user, so we should get the list of telegram_ids first.
+    logging.info('The \'check_new_vacancies\' function started.')
+    users_list = db.get_users()
+    print(f"users list = {users_list}")
+    # 2. Then we should iterate over this list, and do several jobs for each telegram_id.
+    for telegram_id in users_list:
+        # a) Get user's jobs.
+        jobs_table = '_'.join(["jobs", telegram_id])
+        print(f"jobs table = {jobs_table}")
+        users_jobs = re.split(r',\s*', db.get_jobs_or_stops(jobs_table))
+        print(f"users jobs = {users_jobs}")
+        print(f"len of users jobs = {len(users_jobs)}")
+        # Checking if user has any job names saved at all, and skipping if he doesn't.
+        if len(users_jobs) == 0:
+            continue
+        # b) Get user's stops.
+        stops_table = '_'.join(["stops", telegram_id])
+        print(f"stops table = {stops_table}")
+        users_stops = re.split(r',\s*', db.get_jobs_or_stops(stops_table))
+        print(f"users stops = {users_stops}")
+        # c) Run utils.hh_parser and get a list of vacancies from it.
+        vacancies_dict = utils.hh_parser(users_jobs, users_stops)
+        print(f"vacancies dict = {vacancies_dict}")
+        # d) Run db.add_vacancies and pass the list from c) here.
+        vacancies_table = '_'.join(["vacancies", telegram_id])
+        print(f"vacancies table = {vacancies_table}")
+        db.add_vacancies(vacancies_table, vacancies_dict)
+        # e) Get all vacancies with negative 'sent_to_user' flag
+        vacancies_unsent_dict = db.get_vacancies('vacancies_64633225')
+        # f) Send each of them to the user, setting the 'sent_to_user' flag as positive.
+        for name, url in vacancies_unsent_dict.items():
+            print(name, url)  # send to user in fact
+
+
 # async def scheduler():
 #     aioschedule.every().day.at("09:00").do(db.)
 #     while True:
