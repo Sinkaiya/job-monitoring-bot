@@ -26,7 +26,7 @@ def hh_parser(jobs_list, stops_list):
     # Setting the browser's settings. Making it so that it opens in the background,
     # without opening a window.
     browser_options = Options()
-    browser_options.add_argument('--headless')
+    # browser_options.add_argument('--headless')
 
     # Creating a browser instance.
     browser = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()),
@@ -54,6 +54,10 @@ def hh_parser(jobs_list, stops_list):
     # Submitting search request.
     search_input.submit()
 
+    vacancies_count_raw = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancies-search-header"]')
+    vacancies_count = vacancies_count_raw.get_attribute('h1')
+    print(f"vacancies count = {vacancies_count}")
+
     # Creating a dictionary like {'vacancy title': 'vacancy URL'}
     # and filling it up with the search results.
     vacancies_dict = dict()
@@ -67,6 +71,7 @@ def hh_parser(jobs_list, stops_list):
         # Checking if there is more than 1 page with search results. If there are more pages,
         # we are setting the next page number and going to the next loop.
         next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
+        print(f"len vacancies dict = {len(vacancies_dict)}")
         if len(next_page) == 1:  # this means there are some more next pages
             next_page = next_page[0].get_attribute('href')
             browser.get(next_page)
