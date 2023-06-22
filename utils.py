@@ -26,7 +26,7 @@ def hh_parser(jobs_list, stops_list):
     # Setting the browser's settings. Making it so that it opens in the background,
     # without opening a window.
     browser_options = Options()
-    # browser_options.add_argument('--headless')  # DISABLED TEMPORARILY
+    browser_options.add_argument('--headless')
 
     # Creating a browser instance.
     browser = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()),

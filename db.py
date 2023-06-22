@@ -21,7 +21,7 @@ db_config = {'host': "127.0.0.1",
              'database': "jobmonitoringbot"}
 
 
-def connect_to_db(host, port, user, password, database):
+def access_to_db(host, port, user, password, database):
     """Connects to a MySQL database.
 
     :param host: host address
@@ -60,35 +60,64 @@ def connect_to_db(host, port, user, password, database):
     return connection
 
 
-def create_table(create_query, table):
-    """Creates a table which belongs to a specific user and contains this user's data.
+def add_jobs_or_stops(table, data_list):
+    """Adds new entries to jobs or stops tables.
 
-    :param create_query: MySQL query for table creation
-    :type create_query: str
-    :param table: name of the table we are creating
+    :param table: a name of the table we need to add the data to
     :type table: str
-
-    :return: True of False, depending on whether everything worked correctly
+    :param data_list: a list of job names or stop words which should be added
+    :type data_list: list
+    :return: True or False, depending on whether the function has been executed correctly or not
     :rtype: bool
     """
+    column_name = str()
+    if table.startswith('jobs'):
+        column_name = 'job_name'
+    if table.startswith('stops'):
+        column_name = 'stop_word'
+
     error = False
-    logging.info(f'Creating table {table}...')
-    connection = connect_to_db(**db_config)
-    with connection.cursor() as cursor:
-        try:
-            cursor.execute(create_query)
-            connection.commit()
-            logging.info(f'Table {table} created.')
-        except Exception as e:
-            logging.error(f'An attempt to create the table {table} failed: {e}', exc_info=True)
-            error = True
-        finally:
-            connection.close()
-            logging.info(texts.connection_closed)
-            if error:
-                return False
+    logging.info(f'Adding new records to the {table} table...')
+    connection = access_to_db(**db_config)
+
+    for data_element in data_list:
+        # Checking if there is such a data element in the table already.
+        with connection.cursor() as cursor:
+            try:
+                logging.info(f'Checking if \'{data_element}\' is present in {table}...')
+                cursor.execute(f"SELECT * FROM `{table}` "
+                               f"WHERE `{column_name}` = '{data_element}';")
+                search_result = cursor.fetchone()
+            except Exception as e:
+                logging.error(f'An attempt to check if \'{data_element}\' is in {table} '
+                              f'failed: {e}', exc_info=True)
+                error = True
+
+            # If there is no such a job name in the table, we should add it.
+            if search_result is None:
+                try:
+                    logging.info(f'Adding \'{data_element}\' to {table}...')
+                    cursor.execute(f"INSERT INTO `{table}` (`{column_name}`) "
+                                   f"VALUES ('{data_element}');")
+                    connection.commit()
+                    logging.info(f'\'{data_element}\' added to {table}.')
+                except Exception as e:
+                    logging.error(f'An attempt to add \'{data_element}\' to {table} '
+                                  f'failed: {e}', exc_info=True)
+                    error = True
+
+            # If the data element is in the db already, we pass it and go to the next one.
             else:
-                return True
+                logging.info(f'The table {table} already contains \'{data_element}\'. '
+                             f'Skipping...')
+                continue
+
+    connection.close()
+    logging.info(texts.connection_closed)
+    if error:
+        return False
+    else:
+        return True
 
 
 def add_user_if_none(message):
@@ -111,7 +140,7 @@ def add_user_if_none(message):
     # (otherwise False is returned).
     existence_check_result = str()
     search_query = f"SELECT * FROM `users` WHERE `telegram_id` = {telegram_id};"
-    connection = connect_to_db(**db_config)
+    connection = access_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
             cursor.execute(search_query)
@@ -191,7 +220,7 @@ def add_vacancies(user_table, vacancies_dict):
     :rtype: bool
     """
     logging.info(f'Adding new vacancies to the {user_table} table...')
-    connection = connect_to_db(**db_config)
+    connection = access_to_db(**db_config)
     error = False
     for vacancy_name, vacancy_url in vacancies_dict.items():
         # 1. Checking if the vacancy in the db already.
@@ -233,95 +262,39 @@ def add_vacancies(user_table, vacancies_dict):
         return True
 
 
-def add_jobs_or_stops(table, data_list):
-    """Adds new entries to jobs or stops tables.
+def check_if_jobs_empty(message):
+    """Checks if user's table with job names empty.
 
-    :param table: a name of the table we need to add the data to
-    :type table: str
-    :param data_list: a list of job names or stop words which should be added
-    :type data_list: list
-    :return: True or False, depending on whether the function has been executed correctly or not
+    :param message: message: a message object which contains user data
+
+    :return: a specific str flag of False, depending on whether everything worked correctly
     :rtype: bool
     """
-    column_name = str()
-    if table.startswith('jobs'):
-        column_name = 'job_name'
-    if table.startswith('stops'):
-        column_name = 'stop_word'
-
+    logging.info(f"The 'check_if_jobs_empty' function has been started.")
     error = False
-    logging.info(f'Adding new records to the {table} table...')
-    connection = connect_to_db(**db_config)
-
-    for data_element in data_list:
-        # Checking if there is such a data element in the table already.
-        with connection.cursor() as cursor:
-            try:
-                logging.info(f'Checking if \'{data_element}\' is present in {table}...')
-                cursor.execute(f"SELECT * FROM `{table}` "
-                               f"WHERE `{column_name}` = '{data_element}';")
-                search_result = cursor.fetchone()
-            except Exception as e:
-                logging.error(f'An attempt to check if \'{data_element}\' is in {table} '
-                              f'failed: {e}', exc_info=True)
-                error = True
-
-            # If there is no such a job name in the table, we should add it.
-            if search_result is None:
-                try:
-                    logging.info(f'Adding \'{data_element}\' to {table}...')
-                    cursor.execute(f"INSERT INTO `{table}` (`{column_name}`) "
-                                   f"VALUES ('{data_element}');")
-                    connection.commit()
-                    logging.info(f'\'{data_element}\' added to {table}.')
-                except Exception as e:
-                    logging.error(f'An attempt to add \'{data_element}\' to {table} '
-                                  f'failed: {e}', exc_info=True)
-                    error = True
-
-            # If the data element is in the db already, we pass it and go to the next one.
-            else:
-                logging.info(f'The table {table} already contains \'{data_element}\'. '
-                             f'Skipping...')
-                continue
-
-    connection.close()
-    logging.info(texts.connection_closed)
-    if error:
-        return False
-    else:
-        return True
-
-
-def get_jobs_or_stops(table):
-    """
-    Gets user's job names or stop words from the DB and returns them as a list.
-
-    :param table: the name of the table we are extracting the data from
-    :type table: str
-
-    :return: a string or False if something went wrong
-    :rtype: str or bool
-    """
-    error = False
-    logging.info(f'Getting the data from the \'{table}\' table...')
-    connection = connect_to_db(**db_config)
+    add_user_if_none(message)  # creating user if it doesn't exist
+    telegram_id = str(message.from_user.id)
+    jobs_table_state = 'not_empty'
+    jobs_table = '_'.join(['jobs', telegram_id])
+    logging.info(f'Checking if the user {telegram_id} has no entries '
+                 f'in the \'{jobs_table}\' table...')
+    connection = access_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
-            cursor.execute(f"SELECT * FROM `{table}`;")
-            logging.info(f'The data from the \'{table}\' table acquired.')
-            result = cursor.fetchall()
-            data_str = ', '.join([elem[1] for elem in result])
+            cursor.execute(f"SELECT * FROM `{jobs_table}`;")
+            if len(cursor.fetchall()) == 0:
+                jobs_table_state = 'empty'
         except Exception as e:
-            logging.error(f'Getting the data from {table} failed: {e}', exc_info=True)
             error = True
+            logging.error(f'Check if the user {telegram_id} has no entries in the \'{jobs_table}\' '
+                          f'table failed: {e}', exc_info=True)
 
     connection.close()
     logging.info(texts.connection_closed)
     if error:
         return False
     else:
-        return data_str
+        return jobs_table_state
 
 
 def clean_up_db_table(table):
@@ -330,12 +303,12 @@ def clean_up_db_table(table):
     :param table: the name of the table which we are performing the operation upon
     :type table: str
 
-    :return True or False, depending on whether the function has been executed correctly or not
+    :return: True or False, depending on whether the function has been executed correctly or not
     :rtype: bool
     """
     error = False
     logging.info(f'Trying to clean up the \'{table}\' table...')
-    connection = connect_to_db(**db_config)
+    connection = access_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
             cursor.execute(f"TRUNCATE TABLE `{table}`;;")
@@ -355,39 +328,35 @@ def clean_up_db_table(table):
         return True
 
 
-def delete_record(table, column_name, record):
-    """Deletes records in the DB tables.
+def create_table(create_query, table):
+    """Creates a table which belongs to a specific user and contains this user's data.
 
-    :param table: the name of the table which we are performing the operation upon
+    :param create_query: MySQL query for table creation
+    :type create_query: str
+    :param table: name of the table we are creating
     :type table: str
-    :param column_name: the name of the column which contains the data we are about to delete
-    :type column_name: str
-    :param record: the record we are about to delete
-    :type record: str
 
-    :return: True or False, depending on whether the function has been executed correctly or not
+    :return: True of False, depending on whether everything worked correctly
     :rtype: bool
     """
     error = False
-    logging.info(f'Trying to delete \'{record}\' in the \'{table}\' table...')
-    connection = connect_to_db(**db_config)
+    logging.info(f'Creating table {table}...')
+    connection = access_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
-            cursor.execute(f"DELETE FROM `{table}` WHERE `{column_name}` = '{record}';")
+            cursor.execute(create_query)
             connection.commit()
-            logging.info(
-                f'The record \'{record}\' successfully deleted from the \'{table}\' table.')
+            logging.info(f'Table {table} created.')
         except Exception as e:
-            logging.error(f'An attempt to delete \'{record}\' from the \'{table}\' table '
-                          f'failed: {e}', exc_info=True)
+            logging.error(f'An attempt to create the table {table} failed: {e}', exc_info=True)
             error = True
-
-    connection.close()
-    logging.info(texts.connection_closed)
-    if error:
-        return False
-    else:
-        return True
+        finally:
+            connection.close()
+            logging.info(texts.connection_closed)
+            if error:
+                return False
+            else:
+                return True
 
 
 def delete_old_vacancies():
@@ -402,7 +371,7 @@ def delete_old_vacancies():
     tables_list = []
     logging.info(f'Starting a regular job of deleting old vacancies. '
                  f'Getting the list of tables with vacancies...')
-    connection = connect_to_db(**db_config)
+    connection = access_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
             cursor.execute(f"SHOW TABLES LIKE 'vacancies%';")
@@ -438,33 +407,31 @@ def delete_old_vacancies():
         return True
 
 
-def update_sent_to_user(table, vacancy_id, state):
-    """Updates the sent_to_user parameter in the user's vacancies table
+def delete_record(table, column_name, record):
+    """Deletes records in the DB tables.
 
     :param table: the name of the table which we are performing the operation upon
     :type table: str
-    :param vacancy_id: the id of the vacancy
-    :type vacancy_id: str or int
-    :param state: the new state for the sent_to_user parameter (0 - false, 1 - true)
-    :type state: int
+    :param column_name: the name of the column which contains the data we are about to delete
+    :type column_name: str
+    :param record: the record we are about to delete
+    :type record: str
 
     :return: True or False, depending on whether the function has been executed correctly or not
     :rtype: bool
     """
     error = False
-    logging.info(f'Updating the \'sent_to_user\' field for {vacancy_id} '
-                 f'in the \'{table}\' table...')
-    connection = connect_to_db(**db_config)
+    logging.info(f'Trying to delete \'{record}\' in the \'{table}\' table...')
+    connection = access_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
-            cursor.execute(f"UPDATE `{table}` "
-                           f"SET `sent_to_user` = '{state}' "
-                           f"WHERE `vacancy_id` = '{vacancy_id}';")
+            cursor.execute(f"DELETE FROM `{table}` WHERE `{column_name}` = '{record}';")
             connection.commit()
-            logging.info(f'The \'sent_to_user\' field for {vacancy_id} in the \'{table}\' updated.')
+            logging.info(
+                f'The record \'{record}\' successfully deleted from the \'{table}\' table.')
         except Exception as e:
-            logging.error(f'Update of \'sent_to_user\' for {vacancy_id} in the \'{table}\' failed: '
-                          f'{e}', exc_info=True)
+            logging.error(f'An attempt to delete \'{record}\' from the \'{table}\' table '
+                          f'failed: {e}', exc_info=True)
             error = True
 
     connection.close()
@@ -486,7 +453,7 @@ def delete_user(telegram_id):
     """
     error = False
     logging.info(f'Deleting all data for the user {telegram_id}...')
-    connection = connect_to_db(**db_config)
+    connection = access_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
             logging.info(f'Getting the tables names for {telegram_id}...')
@@ -512,39 +479,35 @@ def delete_user(telegram_id):
         return True
 
 
-def check_if_jobs_empty(message):
-    """Checks if user's table with job names empty.
-
-    :param message: message: a message object which contains user data
-
-    :return: a specific str flag of False, depending on whether everything worked correctly
-    :rtype: bool
+def get_jobs_or_stops(table):
     """
-    logging.info(f"The 'check_if_jobs_empty' function has been started.")
+    Gets user's job names or stop words from the DB and returns them as a list.
+
+    :param table: the name of the table we are extracting the data from
+    :type table: str
+
+    :return: a string or False if something went wrong
+    :rtype: str or bool
+    """
     error = False
-    add_user_if_none(message)  # creating user if it doesn't exist
-    telegram_id = str(message.from_user.id)
-    jobs_table_state = 'not_empty'
-    jobs_table = '_'.join(['jobs', telegram_id])
-    logging.info(f'Checking if the user {telegram_id} has no entries '
-                 f'in the \'{jobs_table}\' table...')
-    connection = connect_to_db(**db_config)
+    logging.info(f'Getting the data from the \'{table}\' table...')
+    connection = access_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
-            cursor.execute(f"SELECT * FROM `{jobs_table}`;")
-            if len(cursor.fetchall()) == 0:
-                jobs_table_state = 'empty'
+            cursor.execute(f"SELECT * FROM `{table}`;")
+            logging.info(f'The data from the \'{table}\' table acquired.')
+            result = cursor.fetchall()
+            data_str = ', '.join([elem[1] for elem in result])
         except Exception as e:
+            logging.error(f'Getting the data from {table} failed: {e}', exc_info=True)
             error = True
-            logging.error(f'Check if the user {telegram_id} has no entries in the \'{jobs_table}\' '
-                          f'table failed: {e}', exc_info=True)
 
     connection.close()
     logging.info(texts.connection_closed)
     if error:
         return False
     else:
-        return jobs_table_state
+        return data_str
 
 
 def get_users():
@@ -552,7 +515,7 @@ def get_users():
     error = False
     logging.info("Collecting telegram ids of the users.")
     telegram_ids = []
-    connection = connect_to_db(**db_config)
+    connection = access_to_db(**db_config)
     with connection.cursor() as cursor:
         try:
             cursor.execute("SELECT `telegram_id` FROM `users`;")
@@ -573,14 +536,13 @@ def get_vacancies(table):
     logging.info("The 'get_vacancies' function has been started.")
     error = False
     logging.info(f"Collecting vacancies with negative 'sent_to_user' flag from the {table} table.")
-    connection = connect_to_db(**db_config)
-    vacancies_dict = dict()
+    connection = access_to_db(**db_config)
+    vacancies_list = []
     with connection.cursor() as cursor:
         try:
-            cursor.execute(f"SELECT * FROM `{table}` WHERE 'sent_to_user' = 0;")
-            result = cursor.fetchall()
-            for elem in result:
-                vacancies_dict[elem[2]] = elem[1]
+            cursor.execute(f"SELECT `vacancy_id`, `vacancy_url`, `vacancy_name` "
+                           f"FROM `{table}` WHERE `sent_to_user` = 0;")
+            vacancies_list = cursor.fetchall()
         except Exception as e:
             error = True
             logging.error(f"Collecting the users' telegram ids table failed: {e}", exc_info=True)
@@ -589,4 +551,41 @@ def get_vacancies(table):
     if error:
         return False
     else:
-        return vacancies_dict
+        return vacancies_list
+
+
+def update_sent_to_user(table, vacancy_id, state):
+    """Updates the sent_to_user parameter in the user's vacancies table
+
+    :param table: the name of the table which we are performing the operation upon
+    :type table: str
+    :param vacancy_id: the id of the vacancy
+    :type vacancy_id: str or int
+    :param state: the new state for the sent_to_user parameter (0 - false, 1 - true)
+    :type state: int
+
+    :return: True or False, depending on whether the function has been executed correctly or not
+    :rtype: bool
+    """
+    error = False
+    logging.info(f'Updating the \'sent_to_user\' field for {vacancy_id} '
+                 f'in the \'{table}\' table...')
+    connection = access_to_db(**db_config)
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(f"UPDATE `{table}` "
+                           f"SET `sent_to_user` = '{state}' "
+                           f"WHERE `vacancy_id` = '{vacancy_id}';")
+            connection.commit()
+            logging.info(f'The \'sent_to_user\' field for {vacancy_id} in the \'{table}\' updated.')
+        except Exception as e:
+            logging.error(f'Update of \'sent_to_user\' for {vacancy_id} in the \'{table}\' failed: '
+                          f'{e}', exc_info=True)
+            error = True
+
+    connection.close()
+    logging.info(texts.connection_closed)
+    if error:
+        return False
+    else:
+        return True
