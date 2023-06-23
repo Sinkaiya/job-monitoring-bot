@@ -54,30 +54,31 @@ def hh_parser(jobs_list, stops_list):
     # Submitting search request.
     search_input.submit()
 
-    vacancies_count_raw = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancies-search-header"]')
-    vacancies_count = vacancies_count_raw.get_attribute('h1')
+    # vacancies_count_raw = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancies-search-header"]')
+    vacancies_count_raw = browser.find_element(By.CSS_SELECTOR, '[data-qa="vacancies-search-header"] > h1')
+    vacancies_count = vacancies_count_raw.text
     print(f"vacancies count = {vacancies_count}")
 
     # Creating a dictionary like {'vacancy title': 'vacancy URL'}
     # and filling it up with the search results.
     vacancies_dict = dict()
-    while True:
-        vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
-        for vacancy in vacancies:
-            vacancy_url = vacancy.get_attribute('href')
-            strip_position = vacancy_url.find('?')
-            vacancy_url = vacancy_url[:strip_position]  # removing the unnecessary part of the URL
-            vacancies_dict[vacancy.text] = vacancy_url
-        # Checking if there is more than 1 page with search results. If there are more pages,
-        # we are setting the next page number and going to the next loop.
-        next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
-        print(f"len vacancies dict = {len(vacancies_dict)}")
-        if len(next_page) == 1:  # this means there are some more next pages
-            next_page = next_page[0].get_attribute('href')
-            browser.get(next_page)
-        else:
-            break
-
-    time.sleep(3)
-    browser.close()
-    return vacancies_dict
+    # while True:
+    #     vacancies = browser.find_elements(By.CSS_SELECTOR, '[data-qa="serp-item__title"]')
+    #     for vacancy in vacancies:
+    #         vacancy_url = vacancy.get_attribute('href')
+    #         strip_position = vacancy_url.find('?')
+    #         vacancy_url = vacancy_url[:strip_position]  # removing the unnecessary part of the URL
+    #         vacancies_dict[vacancy.text] = vacancy_url
+    #     # Checking if there is more than 1 page with search results. If there are more pages,
+    #     # we are setting the next page number and going to the next loop.
+    #     next_page = browser.find_elements(By.CSS_SELECTOR, '[data-qa="pager-next"]')
+    #     print(f"len vacancies dict = {len(vacancies_dict)}")
+    #     if len(next_page) == 1:  # this means there are some more next pages
+    #         next_page = next_page[0].get_attribute('href')
+    #         browser.get(next_page)
+    #     else:
+    #         break
+    #
+    # time.sleep(3)
+    # browser.close()
+    # return vacancies_dict
