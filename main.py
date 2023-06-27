@@ -213,7 +213,7 @@ async def edit_or_delete_jobs_or_stops(message: types.Message, state: FSMContext
         # Filling it with new data:
         data_acquired = await acquire_data(message, table)
         if data_acquired:
-            await message.answer(f'{data_str_old}\n\nизменено на\n\n{message.text}.')
+            await message.answer(f'{data_str_old}\n\nизменено на\n\n{message.text}')
         else:
             await message.answer(texts.bot_error_message)
     else:
@@ -232,8 +232,13 @@ async def vacancies_check(telegram_id):
     stops_table = '_'.join(["stops", telegram_id])
     users_stops = re.split(r',\s*', db.get_jobs_or_stops(stops_table))
     # Run parser and get a list of vacancies from it.
-    vacancies_dict = utils.hh_parser(users_jobs, users_stops)
+    vacancies_dict, vacancies_count = utils.hh_parser(users_jobs, users_stops)
     # Save vacancies to the DB.
+    if len(vacancies_dict) == 0:
+        await bot.send_message(telegram_id, f"{texts.too_many_vacancies_1} "
+                                            f"{vacancies_count} "
+                                            f"{texts.too_many_vacancies_2}")
+        return
     vacancies_table = '_'.join(["vacancies", telegram_id])
     db.add_vacancies(vacancies_table, vacancies_dict)
     # Get all vacancies with negative 'sent_to_user' flag
