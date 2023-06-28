@@ -278,7 +278,7 @@ async def regular_vacancies_check():
 
 
 async def scheduler():
-    aioschedule.every().hour.do(regular_vacancies_check)
+    aioschedule.every(6).hours.do(regular_vacancies_check)
     while True:
         await aioschedule.run_pending()
         await asyncio.sleep(1)
