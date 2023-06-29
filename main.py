@@ -6,6 +6,7 @@ from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.utils.exceptions import BotBlocked
 import db
 import utils
 import texts
@@ -222,6 +223,7 @@ async def edit_or_delete_jobs_or_stops(message: types.Message, state: FSMContext
 
 
 async def vacancies_check(telegram_id):
+    logging.info('The \'vacancies_check\' function started.')
     # Get user's jobs.
     jobs_table = '_'.join(["jobs", telegram_id])
     users_jobs = re.split(r',\s*', db.get_jobs_or_stops(jobs_table))
@@ -232,13 +234,16 @@ async def vacancies_check(telegram_id):
     stops_table = '_'.join(["stops", telegram_id])
     users_stops = re.split(r',\s*', db.get_jobs_or_stops(stops_table))
     # Run parser and get a list of vacancies from it.
+    logging.info('Beginning to parse...')
     vacancies_dict, vacancies_count = utils.hh_parser(users_jobs, users_stops)
     # Save vacancies to the DB.
     if len(vacancies_dict) == 0:
         await bot.send_message(telegram_id, f"{texts.too_many_vacancies_1} "
                                             f"{vacancies_count} "
                                             f"{texts.too_many_vacancies_2}")
+        logging.info(f"Too many vacancies upon {telegram_id}'s request.")
         return
+    logging.info(f"Vacancies check for {telegram_id} performed.")
     vacancies_table = '_'.join(["vacancies", telegram_id])
     db.add_vacancies(vacancies_table, vacancies_dict)
     # Get all vacancies with negative 'sent_to_user' flag
@@ -274,8 +279,12 @@ async def regular_vacancies_check():
     users_list = db.get_users()
     # 2. Then we should iterate over this list, and do several jobs for each telegram_id.
     for telegram_id in users_list:
-        await vacancies_check(telegram_id)
-
+        try:
+            await vacancies_check(telegram_id)
+        except BotBlocked as bbe:
+            logging.error(f'The user {telegram_id} blocked the bot: {bbe}. Skipping user.',
+                          exc_info=True)
+            continue
 
 async def scheduler():
     aioschedule.every(6).hours.do(regular_vacancies_check)
